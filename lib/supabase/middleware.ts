@@ -2,8 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-    // Skip auth for dev showcase page
-    if (request.nextUrl.pathname.startsWith("/dev")) {
+    // Skip auth for dev showcase page and auth callback
+    if (
+        request.nextUrl.pathname.startsWith("/dev") ||
+        request.nextUrl.pathname.startsWith("/auth/callback")
+    ) {
         return NextResponse.next();
     }
 

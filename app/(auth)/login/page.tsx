@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -13,7 +13,16 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // Show error from auth callback redirect
+  useEffect(() => {
+    const callbackError = searchParams.get("error");
+    if (callbackError) {
+      toast.error(decodeURIComponent(callbackError));
+    }
+  }, [searchParams]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,10 +42,13 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      const redirectTo = `${window.location.origin}/auth/callback`;
+
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
           shouldCreateUser: true,
+          emailRedirectTo: redirectTo,
         },
       });
 

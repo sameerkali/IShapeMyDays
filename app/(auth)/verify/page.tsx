@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { toast } from "sonner";
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 8;
 
 export default function VerifyPage() {
   const [otp, setOtp] = useState<string[]>(new Array(OTP_LENGTH).fill(""));
@@ -204,7 +204,7 @@ export default function VerifyPage() {
             lineHeight: 1.6,
           }}
         >
-          We sent a 6-digit code to
+          We sent an 8-digit code to
           <br />
           <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
             {maskedEmail}
@@ -243,7 +243,7 @@ export default function VerifyPage() {
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 aria-label={`Digit ${index + 1}`}
                 style={{
-                  width: "48px",
+                  width: "40px",
                   height: "56px",
                   textAlign: "center",
                   fontSize: "20px",
