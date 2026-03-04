@@ -16,6 +16,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
+        data-card=""
         className={className}
         style={{
           backgroundColor: "var(--bg-secondary)",

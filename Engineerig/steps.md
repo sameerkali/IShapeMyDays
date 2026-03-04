@@ -353,7 +353,7 @@
 
 ### Tasks
 
-- [ ] **8.1 — Performance Optimization**
+- [x] **8.1 — Performance Optimization**
   - Verify indexes on all tables:
     - `categories(user_id)`
     - `habits(user_id, category_id)`
@@ -364,7 +364,7 @@
   - Optimize report aggregation queries (avoid N+1)
   → Verify: Query time < 100ms for daily log fetch
 
-- [ ] **8.2 — Micro-animations & Polish**
+- [x] **8.2 — Micro-animations & Polish**
   - Button press scale: `transform: scale(0.97)` on active
   - Card fade-in on mount (subtle, not bouncy)
   - Habit toggle transition (smooth color fill)
@@ -372,21 +372,21 @@
   - **No heavy motion, no bouncy transitions** (per design system §10)
   → Verify: Interactions feel smooth but not distracting
 
-- [ ] **8.3 — Responsive Design Audit**
+- [x] **8.3 — Responsive Design Audit**
   - All pages tested on 375px (iPhone SE) through 1440px (desktop)
   - Max content width: 640px centered on desktop
   - Bottom nav hidden on desktop, side nav alternative (optional)
   - Touch targets: minimum 44px height everywhere
   → Verify: No horizontal scroll, no cut-off text on any screen size
 
-- [ ] **8.4 — Accessibility Check**
+- [x] **8.4 — Accessibility Check**
   - Contrast ratio ≥ 4.5:1 on all text
   - All interactive elements have 44px minimum tap target
   - No font below 14px for body text
   - Proper aria labels on icon-only buttons
   → Verify: Pass automated a11y audit
 
-- [ ] **8.5 — Error Handling & Edge Cases**
+- [x] **8.5 — Error Handling & Edge Cases**
   - Loading states on all data fetches (skeleton cards)
   - Empty states for new users (no categories, no habits, no entries)
   - Network error toasts
