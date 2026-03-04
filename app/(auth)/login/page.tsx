@@ -169,9 +169,9 @@ function LoginForm() {
           lineHeight: 1.6,
         }}
       >
-        We&apos;ll send a 6-digit code to your email.
+       Check your email for an 8-digit code. Try not to lose it.
         <br />
-        New users will be automatically registered.
+        Oh, and if you do not have an account yet? We will just make one for you. You're welcome for saving you the three extra clicks.
       </p>
     </div>
   );
