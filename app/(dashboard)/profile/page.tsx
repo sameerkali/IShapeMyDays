@@ -14,6 +14,8 @@ import type { Profile } from "@/lib/types/database";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -48,6 +50,9 @@ export default function ProfilePage() {
       return;
     }
 
+    setUserId(user.id);
+    setUserEmail(user.email || "");
+
     const [profileRes, settingsRes, habitsRes, entriesRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", user.id).single(),
       supabase.from("calorie_settings").select("*").eq("user_id", user.id).single(),
@@ -59,7 +64,7 @@ export default function ProfilePage() {
         .gte("entry_date", new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0]),
     ]);
 
-    if (profileRes.data) setProfile(profileRes.data);
+    setProfile(profileRes.data || null);
     if (settingsRes.data) setCalorieTarget(String(settingsRes.data.daily_target));
 
     // Weekly score
@@ -78,14 +83,18 @@ export default function ProfilePage() {
   }, [fetchData]);
 
   const openEdit = () => {
-    if (!profile) return;
-    setEditName(profile.name || "");
-    setEditPhone(profile.phone || "");
-    setEditProfession(profile.profession || "");
-    setEditBio(profile.bio || "");
-    setEditGoal(profile.goal || "");
+    setEditName(profile?.name || "");
+    setEditPhone(profile?.phone || "");
+    setEditProfession(profile?.profession || "");
+    setEditBio(profile?.bio || "");
+    setEditGoal(profile?.goal || "");
     setEditOpen(true);
   };
+
+  // A profile "has details" if at least one optional field is filled
+  const hasProfileDetails = Boolean(
+    profile && (profile.profession || profile.bio || profile.goal)
+  );
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) {
@@ -95,27 +104,27 @@ export default function ProfilePage() {
     setIsSaving(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!userId) return;
 
       const { error } = await supabase
         .from("profiles")
-        .update({
+        .upsert({
+          id: userId,
           name: editName.trim(),
+          email: userEmail,
           phone: editPhone.trim() || null,
           profession: editProfession.trim() || null,
           bio: editBio.trim() || null,
           goal: editGoal.trim() || null,
-        })
-        .eq("id", user.id);
+        }, { onConflict: "id" });
 
       if (error) throw error;
 
-      toast.success("Profile updated");
+      toast.success(hasProfileDetails ? "Profile updated" : "Profile details added!");
       setEditOpen(false);
       fetchData();
     } catch {
-      toast.error("Failed to update profile");
+      toast.error("Failed to save profile");
     } finally {
       setIsSaving(false);
     }
@@ -288,28 +297,42 @@ export default function ProfilePage() {
               </p>
             )}
 
-            {/* Edit button */}
-            <button
-              onClick={openEdit}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-1)",
-                marginTop: "var(--space-4)",
-                background: "none",
-                border: "1px solid var(--border-default)",
-                borderRadius: "var(--radius-sm)",
-                padding: "var(--space-2) var(--space-3)",
-                color: "var(--text-muted)",
-                fontSize: "13px",
-                fontWeight: 500,
-                fontFamily: "inherit",
-                cursor: "pointer",
-              }}
-            >
-              <PencilSimple size={14} />
-              Edit Profile
-            </button>
+            {/* Add Details vs Edit Profile */}
+            {hasProfileDetails ? (
+              <button
+                onClick={openEdit}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-1)",
+                  marginTop: "var(--space-4)",
+                  background: "none",
+                  borderWidth: "1px",
+                  borderStyle: "solid",
+                  borderColor: "var(--border-default)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "var(--space-2) var(--space-3)",
+                  color: "var(--text-muted)",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                <PencilSimple size={14} />
+                Edit Profile
+              </button>
+            ) : (
+              <div style={{ marginTop: "var(--space-4)", textAlign: "center" }}>
+                <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
+                  Add your profession, bio, and goal to personalize your experience.
+                </p>
+                <Button variant="primary" onClick={openEdit} style={{ height: "40px", fontSize: "13px" }}>
+                  <PencilSimple size={14} />
+                  Add Profile Details
+                </Button>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -443,7 +466,7 @@ export default function ProfilePage() {
       </div>
 
       {/* ========== EDIT PROFILE SHEET ========== */}
-      <BottomSheet isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Profile">
+      <BottomSheet isOpen={editOpen} onClose={() => setEditOpen(false)} title={hasProfileDetails ? "Edit Profile" : "Add Profile Details"}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <Input
             label="Name"
