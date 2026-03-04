@@ -82,14 +82,14 @@
 
 ### Tasks
 
-- [ ] **1.1 — Supabase project setup**
+- [x] **1.1 — Supabase project setup**
   - Create Supabase project
   - Enable Email OTP auth provider
   - Add env vars to `.env.local`
   - Create Supabase client utilities (`lib/supabase/client.ts` & `lib/supabase/server.ts`)
   → Verify: `supabase.auth.getSession()` returns without error
 
-- [ ] **1.2 — Build Login Page** (`app/(auth)/login/page.tsx`)
+- [x] **1.2 — Build Login Page** (`app/(auth)/login/page.tsx`)
   - Email input field (design system styled)
   - "Send OTP" primary button
   - Calls `supabase.auth.signInWithOtp({ email })`
@@ -97,7 +97,7 @@
   - Error handling with toast notifications
   → Verify: Entering email triggers OTP email from Supabase
 
-- [ ] **1.3 — Build OTP Verification Page** (`app/(auth)/verify/page.tsx`)
+- [x] **1.3 — Build OTP Verification Page** (`app/(auth)/verify/page.tsx`)
   - 6-digit OTP input
   - "Verify" button
   - Calls `supabase.auth.verifyOtp({ email, token, type: 'email' })`
@@ -106,14 +106,14 @@
     - No → redirect to `/profile-setup`
   → Verify: Valid OTP creates session, redirects correctly
 
-- [ ] **1.4 — Build Profile Setup Page** (`app/(auth)/profile-setup/page.tsx`)
+- [x] **1.4 — Build Profile Setup Page** (`app/(auth)/profile-setup/page.tsx`)
   - Form fields: name (required), email (pre-filled, disabled), phone, profession, bio, goal
   - Image upload placeholder (excluded from MVP per `MVP_tech_doc.md`)
   - "Save & Continue" button
   - Inserts into `profiles` table
   → Verify: Profile saved in Supabase, user redirects to dashboard
 
-- [ ] **1.5 — Auth Middleware (Route Protection)**
+- [x] **1.5 — Auth Middleware (Route Protection)**
   - `middleware.ts` at project root
   - Protect all `(dashboard)` routes — redirect to `/login` if no session
   - Redirect authenticated users away from auth pages
