@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import {
-  UserCircle,
+  User,
   PencilSimple,
   SignOut,
   Trash,
@@ -278,153 +278,98 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopBar
-        title="Profile"
-        rightAction={
-          <button
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Settings"
-            style={{
-              background: "none",
-              borderWidth: 0,
-              borderStyle: "none",
-              borderColor: "transparent",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              padding: "var(--space-2)",
-            }}
-          >
-            <Faders size={22} />
-          </button>
-        }
-      />
+   
 
       <div style={{ padding: "var(--space-4)" }}>
-        {/* ========== PROFILE HERO ========== */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(99,102,241,0.08) 100%)",
-            borderRadius: "var(--radius-lg)",
-            padding: "var(--space-8) var(--space-4) var(--space-6)",
-            marginBottom: "var(--space-4)",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          {/* Subtle decorative ring */}
+        {/* ========== PROFILE CARD (compact horizontal) ========== */}
+        <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
           <div
             style={{
-              position: "absolute",
-              top: "-40px",
-              right: "-40px",
-              width: "120px",
-              height: "120px",
-              borderRadius: "50%",
-              border: "2px solid rgba(16,185,129,0.1)",
-            }}
-          />
-
-          {/* Profile Icon */}
-          <div
-            style={{
-              width: "96px",
-              height: "96px",
-              margin: "0 auto var(--space-4)",
-              borderRadius: "50%",
-              background: "linear-gradient(145deg, var(--accent-primary), var(--accent-hover))",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 20px rgba(16,185,129,0.3)",
+              gap: "var(--space-4)",
             }}
           >
-            <UserCircle size={64} weight="thin" color="#ffffff" />
-          </div>
-
-          {/* Name */}
-          <h2 style={{ fontSize: "22px", fontWeight: 700, marginBottom: "4px" }}>
-            {profile?.name || "—"}
-          </h2>
-
-          {/* Profession */}
-          {profile?.profession && (
-            <p
+            {/* Avatar */}
+            <div
               style={{
-                fontSize: "14px",
-                color: "var(--text-muted)",
-                marginBottom: "var(--space-1)",
-              }}
-            >
-              {profile.profession}
-            </p>
-          )}
-
-          {/* Bio */}
-          {profile?.bio && (
-            <p
-              style={{
-                fontSize: "13px",
-                color: "var(--text-secondary)",
-                marginTop: "var(--space-2)",
-                lineHeight: 1.6,
-                maxWidth: "300px",
-                marginLeft: "auto",
-                marginRight: "auto",
-              }}
-            >
-              {profile.bio}
-            </p>
-          )}
-
-          {/* Add / Edit button */}
-          {hasProfileDetails ? (
-            <button
-              onClick={openEdit}
-              style={{
-                display: "inline-flex",
+                width: "64px",
+                height: "64px",
+                borderRadius: "50%",
+                background: "linear-gradient(145deg, var(--accent-primary), var(--accent-hover))",
+                display: "flex",
                 alignItems: "center",
-                gap: "6px",
-                marginTop: "var(--space-4)",
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(8px)",
-                borderWidth: "1px",
-                borderStyle: "solid",
-                borderColor: "rgba(255,255,255,0.1)",
-                borderRadius: "var(--radius-full)",
-                padding: "var(--space-2) var(--space-4)",
-                color: "var(--text-secondary)",
-                fontSize: "13px",
-                fontWeight: 500,
-                fontFamily: "inherit",
-                cursor: "pointer",
+                justifyContent: "center",
+                flexShrink: 0,
+                boxShadow: "0 4px 14px rgba(16,185,129,0.25)",
               }}
             >
-              <PencilSimple size={14} />
-              Edit Profile
-            </button>
-          ) : (
-            <div style={{ marginTop: "var(--space-4)" }}>
-              <p
+              <User size={34} weight="bold" color="#ffffff" />
+            </div>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2
                 style={{
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  marginBottom: "var(--space-3)",
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  marginBottom: "4px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Complete your profile to personalize your experience
-              </p>
-              <Button
-                variant="primary"
-                onClick={openEdit}
-                style={{ height: "40px", fontSize: "13px", borderRadius: "var(--radius-full)" }}
-              >
-                <PencilSimple size={14} />
-                Add Profile Details
-              </Button>
+                {profile?.name || "—"}
+              </h2>
+
+              {hasProfileDetails ? (
+                <button
+                  onClick={openEdit}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    background: "none",
+                    borderWidth: 0,
+                    borderStyle: "none",
+                    borderColor: "transparent",
+                    color: "var(--accent-primary)",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <PencilSimple size={13} />
+                  Edit Profile
+                </button>
+              ) : (
+                <button
+                  onClick={openEdit}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    background: "none",
+                    borderWidth: 0,
+                    borderStyle: "none",
+                    borderColor: "transparent",
+                    color: "var(--accent-primary)",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  <PencilSimple size={13} />
+                  Add Profile Details
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </Card>
 
         {/* ========== INFO CARDS ROW ========== */}
         <div
