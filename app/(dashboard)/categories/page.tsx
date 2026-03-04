@@ -9,19 +9,48 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { PlusCircle, PencilSimple, Trash } from "@phosphor-icons/react";
+import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
+import {
+  PlusCircle,
+  PencilSimple,
+  Trash,
+  Heart,
+  Star,
+  Lightning,
+  BookOpen,
+  Barbell,
+  Brain,
+  Coffee,
+  Moon,
+  SunDim,
+  Drop,
+  MusicNote,
+  Code,
+  PencilLine,
+  Leaf,
+  Dog,
+  Briefcase,
+  Users,
+  Target,
+  Trophy,
+  Flame,
+  WarningCircle,
+  FolderOpen,
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import type { Category } from "@/lib/types/database";
 
-// Phosphor icon subset for categories
-const ICON_OPTIONS = [
-  "Heart", "Star", "Lightning", "BookOpen", "Barbell",
-  "Brain", "Coffee", "Moon", "Sun", "Drop",
-  "Music", "Code", "Pencil", "Leaf", "Dog",
-  "Briefcase", "Users", "Target", "Trophy", "Flame",
-] as const;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ICON_MAP: Record<string, any> = {
+  Heart, Star, Lightning, BookOpen, Barbell,
+  Brain, Coffee, Moon, Sun: SunDim, Drop,
+  Music: MusicNote, Code, Pencil: PencilLine, Leaf, Dog,
+  Briefcase, Users, Target, Trophy, Flame,
+};
 
-// Color palette for categories
+const ICON_OPTIONS = Object.keys(ICON_MAP);
+
+// Color palette
 const COLOR_OPTIONS = [
   "#10B981", "#22C55E", "#3B82F6", "#F59E0B", "#EF4444",
   "#EC4899", "#8B5CF6", "#06B6D4", "#F97316", "#94A3B8",
@@ -41,8 +70,14 @@ const defaultForm: CategoryFormData = {
   order: 0,
 };
 
+function CategoryIcon({ name, size = 20, color }: { name: string; size?: number; color?: string }) {
+  const IconComp = ICON_MAP[name] || Star;
+  return <IconComp size={size} weight="bold" color={color} />;
+}
+
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [habitCounts, setHabitCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,17 +95,24 @@ export default function CategoriesPage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("categories")
-      .select("*")
-      .order("order", { ascending: true });
+    const [catRes, habitsRes] = await Promise.all([
+      supabase.from("categories").select("*").order("order", { ascending: true }),
+      supabase.from("habits").select("id, category_id"),
+    ]);
 
-    if (error) {
+    if (catRes.error) {
       toast.error("Failed to load categories");
       return;
     }
 
-    setCategories(data || []);
+    // Count habits per category
+    const counts: Record<string, number> = {};
+    (habitsRes.data || []).forEach((h: { category_id: string }) => {
+      counts[h.category_id] = (counts[h.category_id] || 0) + 1;
+    });
+    setHabitCounts(counts);
+
+    setCategories(catRes.data || []);
     setIsLoading(false);
   }, [supabase, router]);
 
@@ -86,6 +128,11 @@ export default function CategoriesPage() {
   };
 
   const openEditSheet = (cat: Category) => {
+    const hasHabits = (habitCounts[cat.id] || 0) > 0;
+    if (hasHabits) {
+      toast.error(`"${cat.name}" has ${habitCounts[cat.id]} habit(s). Cannot edit — it would impact your stats.`);
+      return;
+    }
     setEditingId(cat.id);
     setForm({
       name: cat.name,
@@ -107,7 +154,6 @@ export default function CategoriesPage() {
 
     try {
       if (editingId) {
-        // Update
         const { error } = await supabase
           .from("categories")
           .update({
@@ -121,7 +167,6 @@ export default function CategoriesPage() {
         if (error) throw error;
         toast.success("Category updated");
       } else {
-        // Create
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
@@ -149,6 +194,14 @@ export default function CategoriesPage() {
 
   const handleDelete = async (id: string) => {
     try {
+      // Delete associated habits first, then category
+      const { error: habitsError } = await supabase
+        .from("habits")
+        .delete()
+        .eq("category_id", id);
+
+      if (habitsError) throw habitsError;
+
       const { error } = await supabase
         .from("categories")
         .delete()
@@ -159,7 +212,7 @@ export default function CategoriesPage() {
       setDeleteConfirm(null);
       fetchCategories();
     } catch {
-      toast.error("Failed to delete. Remove habits in this category first.");
+      toast.error("Failed to delete category");
     }
   };
 
@@ -208,11 +261,20 @@ export default function CategoriesPage() {
 
       <div style={{ padding: "var(--space-4)" }}>
         {isLoading ? (
-          <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-muted)" }}>
-            Loading categories...
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {[1, 2, 3].map((i) => (
+              <SkeletonCard key={i}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                  <Skeleton width="40px" height="40px" borderRadius="50%" />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton width="60%" height="14px" />
+                    <Skeleton width="30%" height="11px" style={{ marginTop: "6px" }} />
+                  </div>
+                </div>
+              </SkeletonCard>
+            ))}
           </div>
         ) : categories.length === 0 ? (
-          /* Empty State */
           <div
             style={{
               textAlign: "center",
@@ -229,10 +291,9 @@ export default function CategoriesPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 margin: "0 auto var(--space-4)",
-                fontSize: "28px",
               }}
             >
-              📂
+              <FolderOpen size={28} weight="bold" color="var(--text-muted)" />
             </div>
             <h2 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "var(--space-2)" }}>
               No categories yet
@@ -246,159 +307,153 @@ export default function CategoriesPage() {
             </Button>
           </div>
         ) : (
-          /* Category List */
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {categories.map((cat) => (
-              <Card key={cat.id} padding="md">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--space-3)",
-                  }}
-                >
-                  {/* Color dot + icon */}
+            {categories.map((cat) => {
+              const catHabitCount = habitCounts[cat.id] || 0;
+              const hasHabits = catHabitCount > 0;
+
+              return (
+                <Card key={cat.id} padding="md">
                   <div
                     style={{
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: cat.color + "20",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "18px",
-                      flexShrink: 0,
+                      gap: "var(--space-3)",
                     }}
                   >
-                    <span style={{ color: cat.color }}>
-                      {cat.icon === "Heart" ? "❤️" :
-                       cat.icon === "Star" ? "⭐" :
-                       cat.icon === "Lightning" ? "⚡" :
-                       cat.icon === "BookOpen" ? "📖" :
-                       cat.icon === "Barbell" ? "🏋️" :
-                       cat.icon === "Brain" ? "🧠" :
-                       cat.icon === "Coffee" ? "☕" :
-                       cat.icon === "Moon" ? "🌙" :
-                       cat.icon === "Sun" ? "☀️" :
-                       cat.icon === "Drop" ? "💧" :
-                       cat.icon === "Music" ? "🎵" :
-                       cat.icon === "Code" ? "💻" :
-                       cat.icon === "Pencil" ? "✏️" :
-                       cat.icon === "Leaf" ? "🍃" :
-                       cat.icon === "Dog" ? "🐕" :
-                       cat.icon === "Briefcase" ? "💼" :
-                       cat.icon === "Users" ? "👥" :
-                       cat.icon === "Target" ? "🎯" :
-                       cat.icon === "Trophy" ? "🏆" :
-                       cat.icon === "Flame" ? "🔥" : "⭐"}
-                    </span>
-                  </div>
-
-                  {/* Name + badge */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Icon circle */}
                     <div
                       style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        backgroundColor: cat.color + "20",
                         display: "flex",
                         alignItems: "center",
-                        gap: "var(--space-2)",
+                        justifyContent: "center",
+                        flexShrink: 0,
                       }}
                     >
-                      <span
+                      <CategoryIcon name={cat.icon} size={20} color={cat.color} />
+                    </div>
+
+                    {/* Name + badge */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
                         style={{
-                          fontSize: "15px",
-                          fontWeight: 600,
-                          opacity: cat.active ? 1 : 0.5,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "var(--space-2)",
                         }}
                       >
-                        {cat.name}
+                        <span
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 600,
+                            opacity: cat.active ? 1 : 0.5,
+                          }}
+                        >
+                          {cat.name}
+                        </span>
+                        <Badge
+                          variant={cat.active ? "success" : "neutral"}
+                          onClick={() => toggleActive(cat)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          {cat.active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        {catHabitCount > 0 ? `${catHabitCount} habit${catHabitCount > 1 ? "s" : ""}` : "No habits"}
                       </span>
-                      <Badge
-                        variant={cat.active ? "success" : "neutral"}
-                        onClick={() => toggleActive(cat)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        {cat.active ? "Active" : "Inactive"}
-                      </Badge>
                     </div>
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      Order: {cat.order}
-                    </span>
-                  </div>
 
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                    <button
-                      onClick={() => openEditSheet(cat)}
-                      aria-label={`Edit ${cat.name}`}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "var(--text-muted)",
-                        padding: "var(--space-2)",
-                      }}
-                    >
-                      <PencilSimple size={18} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(cat.id)}
-                      aria-label={`Delete ${cat.name}`}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "var(--status-error)",
-                        padding: "var(--space-2)",
-                      }}
-                    >
-                      <Trash size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Delete Confirmation */}
-                {deleteConfirm === cat.id && (
-                  <div
-                    style={{
-                      marginTop: "var(--space-3)",
-                      padding: "var(--space-3)",
-                      backgroundColor: "var(--bg-primary)",
-                      borderRadius: "var(--radius-sm)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "var(--space-2)",
-                    }}
-                  >
-                    <span style={{ fontSize: "13px", color: "var(--status-error)" }}>
-                      Delete this category?
-                    </span>
+                    {/* Actions */}
                     <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                      <Button
-                        variant="ghost"
-                        onClick={() => setDeleteConfirm(null)}
-                        style={{ height: "32px", padding: "0 var(--space-3)", fontSize: "12px" }}
+                      <button
+                        onClick={() => openEditSheet(cat)}
+                        aria-label={`Edit ${cat.name}`}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: hasHabits ? "not-allowed" : "pointer",
+                          color: hasHabits ? "var(--text-disabled)" : "var(--text-muted)",
+                          padding: "var(--space-2)",
+                          opacity: hasHabits ? 0.4 : 1,
+                        }}
                       >
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="danger"
-                        onClick={() => handleDelete(cat.id)}
-                        style={{ height: "32px", padding: "0 var(--space-3)", fontSize: "12px" }}
+                        <PencilSimple size={18} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(cat.id)}
+                        aria-label={`Delete ${cat.name}`}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--status-error)",
+                          padding: "var(--space-2)",
+                        }}
                       >
-                        Delete
-                      </Button>
+                        <Trash size={18} />
+                      </button>
                     </div>
                   </div>
-                )}
-              </Card>
-            ))}
+
+                  {/* Delete Confirmation with warning */}
+                  {deleteConfirm === cat.id && (
+                    <div
+                      style={{
+                        marginTop: "var(--space-3)",
+                        padding: "var(--space-3)",
+                        backgroundColor: "var(--bg-primary)",
+                        borderRadius: "var(--radius-sm)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+                        <WarningCircle size={18} weight="bold" color="var(--status-error)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                        <div>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--status-error)" }}>
+                            Delete &ldquo;{cat.name}&rdquo;?
+                          </span>
+                          {hasHabits && (
+                            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px", lineHeight: 1.5 }}>
+                              This will also delete {catHabitCount} habit{catHabitCount > 1 ? "s" : ""} and their logged entries. This action cannot be undone.
+                            </p>
+                          )}
+                          {!hasHabits && (
+                            <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
+                              This action cannot be undone.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "var(--space-2)", justifyContent: "flex-end" }}>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setDeleteConfirm(null)}
+                          style={{ height: "32px", padding: "0 var(--space-3)", fontSize: "12px" }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => handleDelete(cat.id)}
+                          style={{ height: "32px", padding: "0 var(--space-3)", fontSize: "12px" }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
@@ -457,7 +512,6 @@ export default function CategoriesPage() {
                     backgroundColor:
                       form.icon === icon ? "var(--accent-primary)" + "15" : "var(--bg-primary)",
                     cursor: "pointer",
-                    fontSize: "18px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -466,26 +520,11 @@ export default function CategoriesPage() {
                   type="button"
                   aria-label={icon}
                 >
-                  {icon === "Heart" ? "❤️" :
-                   icon === "Star" ? "⭐" :
-                   icon === "Lightning" ? "⚡" :
-                   icon === "BookOpen" ? "📖" :
-                   icon === "Barbell" ? "🏋️" :
-                   icon === "Brain" ? "🧠" :
-                   icon === "Coffee" ? "☕" :
-                   icon === "Moon" ? "🌙" :
-                   icon === "Sun" ? "☀️" :
-                   icon === "Drop" ? "💧" :
-                   icon === "Music" ? "🎵" :
-                   icon === "Code" ? "💻" :
-                   icon === "Pencil" ? "✏️" :
-                   icon === "Leaf" ? "🍃" :
-                   icon === "Dog" ? "🐕" :
-                   icon === "Briefcase" ? "💼" :
-                   icon === "Users" ? "👥" :
-                   icon === "Target" ? "🎯" :
-                   icon === "Trophy" ? "🏆" :
-                   icon === "Flame" ? "🔥" : "⭐"}
+                  <CategoryIcon
+                    name={icon}
+                    size={20}
+                    color={form.icon === icon ? "var(--accent-primary)" : "var(--text-muted)"}
+                  />
                 </button>
               ))}
             </div>
@@ -525,6 +564,7 @@ export default function CategoriesPage() {
                         : "none",
                     cursor: "pointer",
                     transition: "all var(--transition-fast)",
+                    flexShrink: 0,
                   }}
                   type="button"
                   aria-label={`Color ${color}`}
