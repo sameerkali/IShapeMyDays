@@ -280,7 +280,7 @@
 
 ### Tasks
 
-- [ ] **6.1 — Profile Page** (`app/(dashboard)/profile/page.tsx`)
+- [x] **6.1 — Profile Page** (`app/(dashboard)/profile/page.tsx`)
   - Display per design system §13:
     - Circular avatar (placeholder if no image)
     - Name (bold), Profession (muted `#94A3B8`)
@@ -290,14 +290,14 @@
   - "Logout" button
   → Verify: Profile data loads from Supabase, displays correctly
 
-- [ ] **6.2 — Account Deletion**
+- [x] **6.2 — Account Deletion**
   - "Delete Account" danger button in profile settings
   - Confirmation dialog with explicit text input ("DELETE")
   - Cascade deletes all user data (categories, habits, entries, food logs, reports, profile)
   - Signs out user after deletion
   → Verify: All data removed from all tables, user redirected to login
 
-- [ ] **6.3 — Calorie Target Settings**
+- [x] **6.3 — Calorie Target Settings**
   - Input to set/update daily calorie target
   - Stored in `calorie_settings` table
   - Default suggested: 2000 kcal
