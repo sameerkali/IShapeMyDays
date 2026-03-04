@@ -79,6 +79,40 @@ export default function ProfileSetupPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleSkip = async () => {
+    setIsLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      // Create minimal profile with email-derived name
+      const fallbackName = user.email?.split("@")[0] || "User";
+
+      const { error } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          name: fallbackName,
+          email: user.email,
+        }, { onConflict: "id" });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("You can complete your profile anytime from Settings.");
+      router.replace("/dashboard");
+    } catch {
+      toast.error("Something went wrong.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -93,38 +127,21 @@ export default function ProfileSetupPage() {
         return;
       }
 
-      const { error: insertError } = await supabase.from("profiles").insert({
-        id: user.id,
-        name: form.name.trim(),
-        email: user.email,
-        phone: form.phone.trim() || null,
-        profession: form.profession.trim() || null,
-        bio: form.bio.trim() || null,
-        goal: form.goal.trim() || null,
-      });
+      const { error: upsertError } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          name: form.name.trim(),
+          email: user.email,
+          phone: form.phone.trim() || null,
+          profession: form.profession.trim() || null,
+          bio: form.bio.trim() || null,
+          goal: form.goal.trim() || null,
+        }, { onConflict: "id" });
 
-      if (insertError) {
-        // If profile already exists, try upsert
-        if (insertError.code === "23505") {
-          const { error: updateError } = await supabase
-            .from("profiles")
-            .update({
-              name: form.name.trim(),
-              phone: form.phone.trim() || null,
-              profession: form.profession.trim() || null,
-              bio: form.bio.trim() || null,
-              goal: form.goal.trim() || null,
-            })
-            .eq("id", user.id);
-
-          if (updateError) {
-            toast.error(updateError.message);
-            return;
-          }
-        } else {
-          toast.error(insertError.message);
-          return;
-        }
+      if (upsertError) {
+        toast.error(upsertError.message);
+        return;
       }
 
       toast.success("Profile created! Let's get started.");
@@ -325,7 +342,7 @@ export default function ProfileSetupPage() {
             </span>
           </div>
 
-          <div style={{ marginTop: "var(--space-2)" }}>
+          <div style={{ marginTop: "var(--space-2)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <Button
               type="submit"
               variant="primary"
@@ -334,6 +351,25 @@ export default function ProfileSetupPage() {
             >
               Save & Start Tracking
             </Button>
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={isLoading}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--text-muted)",
+                fontSize: "14px",
+                fontWeight: 500,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                padding: "var(--space-2)",
+                textAlign: "center",
+                opacity: isLoading ? 0.5 : 1,
+              }}
+            >
+              Skip for now →
+            </button>
           </div>
         </form>
       </Card>

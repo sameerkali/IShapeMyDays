@@ -14,22 +14,30 @@ const variantStyles: Record<ButtonVariant, React.CSSProperties> = {
   primary: {
     backgroundColor: "var(--accent-primary)",
     color: "#ffffff",
-    border: "none",
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "transparent",
   },
   secondary: {
     backgroundColor: "transparent",
     color: "var(--text-primary)",
-    border: "1px solid var(--border-default)",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: "var(--border-default)",
   },
   danger: {
     backgroundColor: "var(--status-error)",
     color: "#ffffff",
-    border: "none",
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "transparent",
   },
   ghost: {
     backgroundColor: "transparent",
     color: "var(--text-muted)",
-    border: "none",
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "transparent",
   },
 };
 
