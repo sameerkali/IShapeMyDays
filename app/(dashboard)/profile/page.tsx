@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 import {
   User,
   PencilSimple,
@@ -25,13 +26,25 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { getCached, setCache } from "@/lib/cache";
 import type { Profile } from "@/lib/types/database";
 
+type ProfileCache = {
+  profile: Profile | null;
+  userEmail: string;
+  userId: string;
+  calorieTarget: string;
+  weeklyScore: number;
+  weeklyHabitsCompleted: number;
+  weeklyHabitsTotal: number;
+};
+
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [userEmail, setUserEmail] = useState("");
-  const [userId, setUserId] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const cached = getCached<ProfileCache>("profile");
+  const [profile, setProfile] = useState<Profile | null>(cached?.profile || null);
+  const [userEmail, setUserEmail] = useState(cached?.userEmail || "");
+  const [userId, setUserId] = useState(cached?.userId || "");
+  const [isLoading, setIsLoading] = useState(!cached);
   const [editOpen, setEditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
@@ -48,13 +61,13 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Calorie settings
-  const [calorieTarget, setCalorieTarget] = useState("2000");
+  const [calorieTarget, setCalorieTarget] = useState(cached?.calorieTarget || "2000");
   const [isSavingCalories, setIsSavingCalories] = useState(false);
 
   // Weekly score
-  const [weeklyScore, setWeeklyScore] = useState(0);
-  const [weeklyHabitsCompleted, setWeeklyHabitsCompleted] = useState(0);
-  const [weeklyHabitsTotal, setWeeklyHabitsTotal] = useState(0);
+  const [weeklyScore, setWeeklyScore] = useState(cached?.weeklyScore || 0);
+  const [weeklyHabitsCompleted, setWeeklyHabitsCompleted] = useState(cached?.weeklyHabitsCompleted || 0);
+  const [weeklyHabitsTotal, setWeeklyHabitsTotal] = useState(cached?.weeklyHabitsTotal || 0);
 
   const router = useRouter();
   const supabase = createClient();
@@ -88,7 +101,18 @@ export default function ProfilePage() {
     const completedCount = (entriesRes.data || []).length;
     setWeeklyHabitsCompleted(completedCount);
     setWeeklyHabitsTotal(totalPossible);
-    setWeeklyScore(totalPossible > 0 ? Math.round((completedCount / totalPossible) * 100) : 0);
+    const newScore = totalPossible > 0 ? Math.round((completedCount / totalPossible) * 100) : 0;
+    setWeeklyScore(newScore);
+
+    setCache<ProfileCache>("profile", {
+      profile: profileRes.data || null,
+      userEmail: user.email || "",
+      userId: user.id,
+      calorieTarget: settingsRes.data ? String(settingsRes.data.daily_target) : "2000",
+      weeklyScore: newScore,
+      weeklyHabitsCompleted: completedCount,
+      weeklyHabitsTotal: totalPossible,
+    });
 
     setIsLoading(false);
   }, [supabase, router]);
@@ -207,9 +231,43 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <>
-        <TopBar title="Profile" />
-        <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-muted)" }}>
-          Loading profile...
+        <div style={{ padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          {/* Profile card skeleton */}
+          <SkeletonCard>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
+              <Skeleton width="64px" height="64px" borderRadius="50%" />
+              <div style={{ flex: 1 }}>
+                <Skeleton width="120px" height="18px" />
+                <Skeleton width="80px" height="13px" style={{ marginTop: "6px" }} />
+              </div>
+            </div>
+          </SkeletonCard>
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+            <SkeletonCard>
+              <div style={{ textAlign: "center" }}>
+                <Skeleton width="24px" height="24px" borderRadius="50%" style={{ margin: "0 auto" }} />
+                <Skeleton width="50px" height="28px" style={{ margin: "var(--space-2) auto 0" }} />
+                <Skeleton width="70px" height="11px" style={{ margin: "4px auto 0" }} />
+              </div>
+            </SkeletonCard>
+            <SkeletonCard>
+              <div style={{ textAlign: "center" }}>
+                <Skeleton width="24px" height="24px" borderRadius="50%" style={{ margin: "0 auto" }} />
+                <Skeleton width="50px" height="28px" style={{ margin: "var(--space-2) auto 0" }} />
+                <Skeleton width="70px" height="11px" style={{ margin: "4px auto 0" }} />
+              </div>
+            </SkeletonCard>
+          </div>
+          {/* Menu rows */}
+          {[1, 2, 3].map((i) => (
+            <SkeletonCard key={i}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                <Skeleton width="18px" height="18px" borderRadius="4px" />
+                <Skeleton width="50%" height="14px" />
+              </div>
+            </SkeletonCard>
+          ))}
         </div>
       </>
     );

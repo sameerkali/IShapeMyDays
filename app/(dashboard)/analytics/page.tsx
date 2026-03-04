@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card } from "@/components/ui/Card";
+import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 import { Fire, TrendUp, Trophy } from "@phosphor-icons/react";
 import {
   LineChart,
@@ -17,7 +18,14 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { getCached, setCache } from "@/lib/cache";
 import type { Habit, HabitEntry, Category } from "@/lib/types/database";
+
+type AnalyticsCache = {
+  habits: Habit[];
+  entries: HabitEntry[];
+  categories: Category[];
+};
 
 function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
@@ -32,17 +40,18 @@ type RangeKey = "7" | "30";
 
 export default function AnalyticsPage() {
   const [range, setRange] = useState<RangeKey>("7");
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [entries, setEntries] = useState<HabitEntry[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const rangeDays = parseInt(range);
+  const cacheKey = `analytics_${rangeDays}`;
+  const cached = getCached<AnalyticsCache>(cacheKey);
+
+  const [habits, setHabits] = useState<Habit[]>(cached?.habits || []);
+  const [entries, setEntries] = useState<HabitEntry[]>(cached?.entries || []);
+  const [categories, setCategories] = useState<Category[]>(cached?.categories || []);
+  const [isLoading, setIsLoading] = useState(!cached);
   const router = useRouter();
   const supabase = createClient();
 
-  const rangeDays = parseInt(range);
-
   const fetchData = useCallback(async () => {
-    setIsLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       router.replace("/login");
@@ -64,8 +73,15 @@ export default function AnalyticsPage() {
     setHabits(habitsRes.data || []);
     setEntries(entriesRes.data || []);
     setCategories(categoriesRes.data || []);
+
+    setCache<AnalyticsCache>(cacheKey, {
+      habits: habitsRes.data || [],
+      entries: entriesRes.data || [],
+      categories: categoriesRes.data || [],
+    });
+
     setIsLoading(false);
-  }, [supabase, router, rangeDays]);
+  }, [supabase, router, rangeDays, cacheKey]);
 
   useEffect(() => {
     fetchData();
@@ -225,8 +241,27 @@ export default function AnalyticsPage() {
         </div>
 
         {isLoading ? (
-          <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-muted)" }}>
-            Loading analytics...
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+            {/* Chart skeleton */}
+            <SkeletonCard>
+              <Skeleton width="120px" height="14px" style={{ marginBottom: "var(--space-3)" }} />
+              <Skeleton width="100%" height="180px" borderRadius="var(--radius-md)" />
+            </SkeletonCard>
+            {/* Summary cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-3)" }}>
+              {[1, 2, 3].map((i) => (
+                <SkeletonCard key={i}>
+                  <Skeleton width="20px" height="20px" borderRadius="50%" style={{ margin: "0 auto" }} />
+                  <Skeleton width="40px" height="22px" style={{ margin: "var(--space-2) auto 0" }} />
+                  <Skeleton width="50px" height="10px" style={{ margin: "4px auto 0" }} />
+                </SkeletonCard>
+              ))}
+            </div>
+            {/* Second chart skeleton */}
+            <SkeletonCard>
+              <Skeleton width="140px" height="14px" style={{ marginBottom: "var(--space-3)" }} />
+              <Skeleton width="100%" height="160px" borderRadius="var(--radius-md)" />
+            </SkeletonCard>
           </div>
         ) : totalActiveHabits === 0 ? (
           <div style={{ textAlign: "center", padding: "var(--space-10)" }}>

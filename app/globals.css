@@ -197,6 +197,12 @@ h3 {
   }
 }
 
+@keyframes shimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
+}
+
 /* === Micro-Animations (Design System §10 — Calm Control) === */
 
 /* Button press feedback */

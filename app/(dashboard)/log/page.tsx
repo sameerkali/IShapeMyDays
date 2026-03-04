@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 import {
   CaretLeft,
   CaretRight,
@@ -18,7 +19,18 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { getCached, setCache } from "@/lib/cache";
 import type { Habit, HabitEntry, FoodLog, Category } from "@/lib/types/database";
+
+type LogCache = {
+  habits: Habit[];
+  categories: Category[];
+  entries: HabitEntry[];
+  foodLogs: FoodLog[];
+  calorieTarget: number;
+  recentFoods: FoodLog[];
+  durationInput: Record<string, string>;
+};
 
 // Helpers
 function formatDate(date: Date): string {
@@ -60,11 +72,24 @@ type FoodFormData = {
 
 export default function LogPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [habits, setHabits] = useState<(Habit & { category?: Category })[]>([]);
-  const [entries, setEntries] = useState<HabitEntry[]>([]);
-  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
-  const [calorieTarget, setCalorieTarget] = useState(2000);
-  const [isLoading, setIsLoading] = useState(true);
+  const dateKey = formatDate(selectedDate);
+  const cacheKey = `log_${dateKey}`;
+
+  type LogCache = {
+    habits: (Habit & { category?: Category })[];
+    entries: HabitEntry[];
+    foodLogs: FoodLog[];
+    calorieTarget: number;
+    recentFoods: { food_name: string; calories: number }[];
+    durationInput: Record<string, string>;
+  };
+
+  const cached = getCached<LogCache>(cacheKey);
+  const [habits, setHabits] = useState<(Habit & { category?: Category })[]>(cached?.habits || []);
+  const [entries, setEntries] = useState<HabitEntry[]>(cached?.entries || []);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>(cached?.foodLogs || []);
+  const [calorieTarget, setCalorieTarget] = useState(cached?.calorieTarget || 2000);
+  const [isLoading, setIsLoading] = useState(!cached);
   const [foodSheetOpen, setFoodSheetOpen] = useState(false);
   const [foodForm, setFoodForm] = useState<FoodFormData>({
     food_name: "",
@@ -73,17 +98,14 @@ export default function LogPage() {
   });
   const [foodError, setFoodError] = useState("");
   const [isSavingFood, setIsSavingFood] = useState(false);
-  const [recentFoods, setRecentFoods] = useState<{ food_name: string; calories: number }[]>([]);
-  const [durationInput, setDurationInput] = useState<Record<string, string>>({});
+  const [recentFoods, setRecentFoods] = useState<{ food_name: string; calories: number }[]>(cached?.recentFoods || []);
+  const [durationInput, setDurationInput] = useState<Record<string, string>>(cached?.durationInput || {});
 
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const router = useRouter();
   const supabase = createClient();
 
-  const dateKey = formatDate(selectedDate);
-
   const fetchData = useCallback(async () => {
-    setIsLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       router.replace("/login");
@@ -145,8 +167,17 @@ export default function LogPage() {
     });
     setDurationInput(durationInputs);
 
+    setCache(cacheKey, {
+      habits: habitsWithCategory,
+      entries: entriesRes.data || [],
+      foodLogs: foodRes.data || [],
+      calorieTarget: settingsRes.data?.daily_target || 2000,
+      recentFoods: uniqueRecent,
+      durationInput: durationInputs,
+    });
+
     setIsLoading(false);
-  }, [supabase, router, dateKey]);
+  }, [supabase, router, dateKey, cacheKey]);
 
   useEffect(() => {
     fetchData();
@@ -422,8 +453,23 @@ export default function LogPage() {
         </div>
 
         {isLoading ? (
-          <div style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--text-muted)" }}>
-            Loading...
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {[1, 2, 3, 4].map((i) => (
+              <SkeletonCard key={i}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                  <Skeleton width="22px" height="22px" borderRadius="50%" />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton width="60%" height="14px" />
+                    <Skeleton width="40%" height="11px" style={{ marginTop: "6px" }} />
+                  </div>
+                </div>
+              </SkeletonCard>
+            ))}
+            <SkeletonCard style={{ marginTop: "var(--space-2)" }}>
+              <Skeleton width="100px" height="14px" />
+              <Skeleton width="70%" height="12px" style={{ marginTop: "var(--space-2)" }} />
+              <Skeleton width="100%" height="6px" borderRadius="3px" style={{ marginTop: "var(--space-2)" }} />
+            </SkeletonCard>
           </div>
         ) : (
           <>

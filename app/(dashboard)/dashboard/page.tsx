@@ -7,22 +7,35 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ProgressRing } from "@/components/ui/ProgressRing";
+import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
 import { Fire, CheckCircle, ArrowRight } from "@phosphor-icons/react";
+import { getCached, setCache } from "@/lib/cache";
 import type { Habit, HabitEntry, FoodLog, Category } from "@/lib/types/database";
+
+type DashboardCache = {
+  habits: Habit[];
+  todayEntries: HabitEntry[];
+  categories: Category[];
+  foodLogs: FoodLog[];
+  calorieTarget: number;
+  streak: number;
+  userName: string;
+};
 
 function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
 export default function DashboardPage() {
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [todayEntries, setTodayEntries] = useState<HabitEntry[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
-  const [calorieTarget, setCalorieTarget] = useState(2000);
-  const [streak, setStreak] = useState(0);
-  const [userName, setUserName] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const cached = getCached<DashboardCache>("dashboard");
+  const [habits, setHabits] = useState<Habit[]>(cached?.habits || []);
+  const [todayEntries, setTodayEntries] = useState<HabitEntry[]>(cached?.todayEntries || []);
+  const [categories, setCategories] = useState<Category[]>(cached?.categories || []);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>(cached?.foodLogs || []);
+  const [calorieTarget, setCalorieTarget] = useState(cached?.calorieTarget || 2000);
+  const [streak, setStreak] = useState(cached?.streak || 0);
+  const [userName, setUserName] = useState(cached?.userName || "");
+  const [isLoading, setIsLoading] = useState(!cached);
   const router = useRouter();
   const supabase = createClient();
 
@@ -42,7 +55,6 @@ export default function DashboardPage() {
       todayEntriesRes,
       foodRes,
       settingsRes,
-      // Fetch last 60 days of entries for streak calculation
       streakEntriesRes,
     ] = await Promise.all([
       supabase.from("profiles").select("name").eq("id", user.id).single(),
@@ -63,24 +75,30 @@ export default function DashboardPage() {
         .order("entry_date", { ascending: false }),
     ]);
 
-    if (profileRes.data) setUserName(profileRes.data.name || "");
-    setHabits(habitsRes.data || []);
-    setCategories(categoriesRes.data || []);
-    setTodayEntries(todayEntriesRes.data || []);
-    setFoodLogs(foodRes.data || []);
-    if (settingsRes.data) setCalorieTarget(settingsRes.data.daily_target);
+    const newName = profileRes.data?.name || "";
+    const newHabits = habitsRes.data || [];
+    const newCategories = categoriesRes.data || [];
+    const newTodayEntries = todayEntriesRes.data || [];
+    const newFoodLogs = foodRes.data || [];
+    const newCalorieTarget = settingsRes.data?.daily_target || 2000;
+
+    setUserName(newName);
+    setHabits(newHabits);
+    setCategories(newCategories);
+    setTodayEntries(newTodayEntries);
+    setFoodLogs(newFoodLogs);
+    setCalorieTarget(newCalorieTarget);
 
     // Calculate streak
-    const totalActiveHabits = (habitsRes.data || []).length;
+    let newStreak = 0;
+    const totalActiveHabits = newHabits.length;
     if (totalActiveHabits > 0 && streakEntriesRes.data) {
       const entriesByDate = new Map<string, number>();
       streakEntriesRes.data.forEach((e: { entry_date: string }) => {
         entriesByDate.set(e.entry_date, (entriesByDate.get(e.entry_date) || 0) + 1);
       });
 
-      let currentStreak = 0;
       const d = new Date();
-      // Check if today is complete, if not start from yesterday
       const todayComplete = (entriesByDate.get(formatDate(d)) || 0) >= totalActiveHabits;
       if (!todayComplete) d.setDate(d.getDate() - 1);
 
@@ -88,14 +106,24 @@ export default function DashboardPage() {
         const key = formatDate(d);
         const completedCount = entriesByDate.get(key) || 0;
         if (completedCount >= totalActiveHabits) {
-          currentStreak++;
+          newStreak++;
           d.setDate(d.getDate() - 1);
         } else {
           break;
         }
       }
-      setStreak(currentStreak);
+      setStreak(newStreak);
     }
+
+    setCache<DashboardCache>("dashboard", {
+      habits: newHabits,
+      todayEntries: newTodayEntries,
+      categories: newCategories,
+      foodLogs: newFoodLogs,
+      calorieTarget: newCalorieTarget,
+      streak: newStreak,
+      userName: newName,
+    });
 
     setIsLoading(false);
   }, [supabase, router, today]);
@@ -136,8 +164,42 @@ export default function DashboardPage() {
     return (
       <>
         <TopBar title="Dashboard" />
-        <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-muted)" }}>
-          Loading your dashboard...
+        <div style={{ padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          {/* Greeting skeleton */}
+          <div>
+            <Skeleton width="140px" height="20px" />
+            <Skeleton width="200px" height="14px" style={{ marginTop: "var(--space-2)" }} />
+          </div>
+          {/* 2 stat cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+            <SkeletonCard>
+              <Skeleton width="50px" height="12px" />
+              <Skeleton width="70px" height="28px" style={{ marginTop: "var(--space-2)" }} />
+            </SkeletonCard>
+            <SkeletonCard>
+              <Skeleton width="50px" height="12px" />
+              <Skeleton width="70px" height="28px" style={{ marginTop: "var(--space-2)" }} />
+            </SkeletonCard>
+          </div>
+          {/* Progress card */}
+          <SkeletonCard>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
+              <Skeleton width="64px" height="64px" borderRadius="50%" />
+              <div style={{ flex: 1 }}>
+                <Skeleton width="120px" height="16px" />
+                <Skeleton width="80px" height="12px" style={{ marginTop: "var(--space-2)" }} />
+              </div>
+            </div>
+          </SkeletonCard>
+          {/* Habit rows */}
+          {[1, 2, 3].map((i) => (
+            <SkeletonCard key={i}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                <Skeleton width="20px" height="20px" borderRadius="50%" />
+                <Skeleton width="60%" height="14px" />
+              </div>
+            </SkeletonCard>
+          ))}
         </div>
       </>
     );
