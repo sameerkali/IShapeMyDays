@@ -12,3 +12,5 @@ export type { BadgeProps, BadgeVariant } from "./Badge";
 
 export { ProgressRing } from "./ProgressRing";
 export type { ProgressRingProps } from "./ProgressRing";
+
+export { BottomSheet } from "./BottomSheet";

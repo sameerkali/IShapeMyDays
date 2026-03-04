@@ -1,6 +1,6 @@
 type BadgeVariant = "success" | "warning" | "error" | "neutral" | "accent";
 
-type BadgeProps = {
+type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
   variant?: BadgeVariant;
   children: React.ReactNode;
 };
@@ -13,7 +13,7 @@ const variantColors: Record<BadgeVariant, { bg: string; text: string }> = {
   accent: { bg: "rgba(16, 185, 129, 0.15)", text: "var(--accent-primary)" },
 };
 
-function Badge({ variant = "neutral", children }: BadgeProps) {
+function Badge({ variant = "neutral", children, style, ...props }: BadgeProps) {
   const colors = variantColors[variant];
 
   return (
@@ -28,7 +28,9 @@ function Badge({ variant = "neutral", children }: BadgeProps) {
         backgroundColor: colors.bg,
         color: colors.text,
         lineHeight: 1.6,
+        ...style,
       }}
+      {...props}
     >
       {children}
     </span>

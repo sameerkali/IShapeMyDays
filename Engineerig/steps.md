@@ -127,42 +127,42 @@
 
 ### Tasks
 
-- [ ] **2.1 — Create `profiles` table**
+- [x] **2.1 — Create `profiles` table**
   - Fields: `id` (uuid PK → auth.uid), `name`, `image_url`, `email`, `phone`, `profession`, `bio`, `goal`, `created_at`
   - RLS: Users can only SELECT/UPDATE their own row
   - Trigger: Auto-create profile row on auth signup (optional)
   → Verify: Insert a profile, attempt cross-user SELECT → denied
 
-- [ ] **2.2 — Create `categories` table**
+- [x] **2.2 — Create `categories` table**
   - Fields: `id` (uuid), `user_id` (uuid → auth.uid), `name`, `icon`, `color`, `order` (int), `active` (bool), `created_at`
   - Index: `user_id`
   - RLS: All CRUD scoped to `user_id = auth.uid()`
   → Verify: RLS test — user A cannot see user B's categories
 
-- [ ] **2.3 — Create `habits` table**
+- [x] **2.3 — Create `habits` table**
   - Fields: `id`, `user_id`, `category_id` (FK → categories), `name`, `tracking_type` (boolean | duration), `target_value`, `unit`, `active`, `created_at`
   - Index: `(user_id, category_id)`
   - RLS: Scoped to `user_id = auth.uid()`
   → Verify: Habit links to correct category, RLS enforced
 
-- [ ] **2.4 — Create `habit_entries` table**
+- [x] **2.4 — Create `habit_entries` table**
   - Fields: `id`, `user_id`, `habit_id` (FK → habits), `entry_date` (date), `value` (numeric), `completed` (bool), `notes`, `created_at`
   - Index: `(user_id, entry_date)` (critical for daily queries)
   - RLS: Scoped to user
   → Verify: Query entries by date returns only user's data
 
-- [ ] **2.5 — Create `food_logs` table**
+- [x] **2.5 — Create `food_logs` table**
   - Fields: `id`, `user_id`, `food_name`, `calories` (int), `meal_type` (breakfast/lunch/dinner/snack), `logged_at` (timestamp), `created_at`
   - Index: `(user_id, created_at)`
   - RLS: Scoped to user
   → Verify: Log food, query by date range works
 
-- [ ] **2.6 — Create `calorie_settings` table**
+- [x] **2.6 — Create `calorie_settings` table**
   - Fields: `id`, `user_id` (unique), `daily_target` (int), `updated_at`
   - RLS: Scoped to user
   → Verify: Each user has one calorie target row
 
-- [ ] **2.7 — Create TypeScript types** (`lib/types/database.ts`)
+- [x] **2.7 — Create TypeScript types** (`lib/types/database.ts`)
   - Generate types from Supabase CLI: `npx supabase gen types typescript`
   - Or manually define interfaces matching all tables
   → Verify: Types used in components without TS errors
@@ -175,27 +175,27 @@
 
 ### Tasks
 
-- [ ] **3.1 — Categories List Page** (`app/(dashboard)/categories/page.tsx`)
+- [x] **3.1 — Categories List Page** (`app/(dashboard)/categories/page.tsx`)
   - Fetch all categories for current user (sorted by `order`)
   - Display as cards with icon, name, color indicator, active/inactive badge
   - "Add Category" FAB (PlusCircle icon)
   → Verify: Categories load from Supabase, empty state shown for new users
 
-- [ ] **3.2 — Create/Edit Category Bottom Sheet**
+- [x] **3.2 — Create/Edit Category Bottom Sheet**
   - Fields: name, icon picker (Phosphor subset), color picker, order
   - Create: `POST /categories` → insert into Supabase
   - Edit: `PATCH /categories/:id` → update in Supabase
   - Delete: confirmation dialog → `DELETE /categories/:id`
   → Verify: Create → appears in list; Edit → changes reflect; Delete → removed
 
-- [ ] **3.3 — Habits List Page** (`app/(dashboard)/habits/page.tsx`)
+- [x] **3.3 — Habits List Page** (`app/(dashboard)/habits/page.tsx`)
   - Grouped by category
   - Each habit shows: name, tracking type icon, target value
   - Filter by category
   - "Add Habit" button
   → Verify: Habits display under correct categories
 
-- [ ] **3.4 — Create/Edit Habit Bottom Sheet**
+- [x] **3.4 — Create/Edit Habit Bottom Sheet**
   - Fields: name, category (dropdown), tracking type (boolean/duration), target value, unit
   - Validation: name required, category required, target > 0 for duration
   → Verify: Habit created with correct category association, tracking type displays properly
