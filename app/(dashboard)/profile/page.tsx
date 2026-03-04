@@ -59,6 +59,7 @@ export default function ProfilePage() {
   const [editBio, setEditBio] = useState("");
   const [editGoal, setEditGoal] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   // Calorie settings
   const [calorieTarget, setCalorieTarget] = useState(cached?.calorieTarget || "2000");
@@ -134,11 +135,35 @@ export default function ProfilePage() {
     profile && (profile.profession || profile.bio || profile.goal)
   );
 
+  // Validation helpers
+  const LIMITS = { name: 30, phone: 10, profession: 50, bio: 500, goal: 200 };
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    const name = editName.trim();
+    const phone = editPhone.trim();
+
+    if (!name) errors.name = "Name is required";
+    else if (name.length > LIMITS.name) errors.name = `Max ${LIMITS.name} characters`;
+
+    if (phone && !/^\d{10}$/.test(phone)) errors.phone = "Must be exactly 10 digits";
+
+    if (editProfession.trim().length > LIMITS.profession)
+      errors.profession = `Max ${LIMITS.profession} characters`;
+
+    if (editBio.trim().length > LIMITS.bio)
+      errors.bio = `Max ${LIMITS.bio} characters`;
+
+    if (editGoal.trim().length > LIMITS.goal)
+      errors.goal = `Max ${LIMITS.goal} characters`;
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSaveProfile = async () => {
-    if (!editName.trim()) {
-      toast.error("Name is required");
-      return;
-    }
+    if (!validateForm()) return;
     setIsSaving(true);
 
     try {
@@ -339,93 +364,69 @@ export default function ProfilePage() {
    
 
       <div style={{ padding: "var(--space-4)" }}>
-        {/* ========== PROFILE CARD (compact horizontal) ========== */}
-        <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-4)",
-            }}
-          >
-            {/* Avatar */}
-            <div
-              style={{
-                width: "64px",
-                height: "64px",
-                borderRadius: "50%",
-                background: "linear-gradient(145deg, var(--accent-primary), var(--accent-hover))",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                boxShadow: "0 4px 14px rgba(16,185,129,0.25)",
-              }}
-            >
-              <User size={34} weight="bold" color="#ffffff" />
-            </div>
-
-            {/* Info */}
+        {/* ========== PROFILE CARD ========== */}
+        <Card padding="lg" style={{ marginBottom: "var(--space-4)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <h2
                 style={{
-                  fontSize: "18px",
+                  fontSize: "22px",
                   fontWeight: 700,
                   marginBottom: "4px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  lineHeight: 1.3,
                 }}
               >
                 {profile?.name || "—"}
               </h2>
-
-              {hasProfileDetails ? (
-                <button
-                  onClick={openEdit}
+              {profile?.bio && (
+                <p
+                  onClick={() => setBioExpanded(!bioExpanded)}
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    background: "none",
-                    borderWidth: 0,
-                    borderStyle: "none",
-                    borderColor: "transparent",
-                    color: "var(--accent-primary)",
                     fontSize: "13px",
-                    fontWeight: 500,
-                    fontFamily: "inherit",
+                    color: "var(--text-muted)",
+                    lineHeight: 1.6,
+                    marginTop: "var(--space-1)",
                     cursor: "pointer",
-                    padding: 0,
+                    ...(!bioExpanded ? {
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical" as const,
+                      overflow: "hidden",
+                    } : {}),
                   }}
                 >
-                  <PencilSimple size={13} />
-                  Edit Profile
-                </button>
-              ) : (
-                <button
-                  onClick={openEdit}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    background: "none",
-                    borderWidth: 0,
-                    borderStyle: "none",
-                    borderColor: "transparent",
-                    color: "var(--accent-primary)",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  <PencilSimple size={13} />
-                  Add Profile Details
-                </button>
+                  {profile.bio}
+                </p>
+              )}
+              {!hasProfileDetails && (
+                <p style={{ fontSize: "13px", color: "var(--text-disabled)", marginTop: "var(--space-1)" }}>
+                  Tap edit to add your details
+                </p>
               )}
             </div>
+            <button
+              onClick={openEdit}
+              aria-label="Edit Profile"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                background: "none",
+                borderWidth: 0,
+                borderStyle: "none",
+                borderColor: "transparent",
+                color: "var(--accent-primary)",
+                fontSize: "13px",
+                fontWeight: 500,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                padding: "var(--space-1) 0",
+                flexShrink: 0,
+              }}
+            >
+              <PencilSimple size={14} />
+              Edit
+            </button>
           </div>
         </Card>
 
@@ -611,28 +612,67 @@ export default function ProfilePage() {
       {/* ========== EDIT PROFILE SHEET ========== */}
       <BottomSheet
         isOpen={editOpen}
-        onClose={() => setEditOpen(false)}
+        onClose={() => { setEditOpen(false); setFormErrors({}); }}
         title={hasProfileDetails ? "Edit Profile" : "Add Profile Details"}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <Input
-            label="Name"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            autoFocus
-          />
-          <Input
-            label="Phone"
-            value={editPhone}
-            onChange={(e) => setEditPhone(e.target.value)}
-            placeholder="Optional"
-          />
-          <Input
-            label="Profession"
-            value={editProfession}
-            onChange={(e) => setEditProfession(e.target.value)}
-            placeholder="e.g. Developer, Designer, Student"
-          />
+          {/* Name */}
+          <div>
+            <Input
+              label={`Name *`}
+              value={editName}
+              onChange={(e) => { if (e.target.value.length <= LIMITS.name) setEditName(e.target.value); setFormErrors((p) => ({ ...p, name: "" })); }}
+              autoFocus
+              placeholder="Your full name"
+              style={formErrors.name ? { borderColor: "var(--status-error)" } : undefined}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: formErrors.name ? "var(--status-error)" : "transparent" }}>
+                {formErrors.name || "."}
+              </span>
+              <span style={{ fontSize: "11px", color: editName.length >= LIMITS.name ? "var(--status-error)" : "var(--text-disabled)" }}>
+                {editName.length}/{LIMITS.name}
+              </span>
+            </div>
+          </div>
+
+          {/* Phone */}
+          <div>
+            <Input
+              label="Phone"
+              value={editPhone}
+              onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, LIMITS.phone); setEditPhone(v); setFormErrors((p) => ({ ...p, phone: "" })); }}
+              placeholder="10-digit number"
+              inputMode="numeric"
+              style={formErrors.phone ? { borderColor: "var(--status-error)" } : undefined}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: formErrors.phone ? "var(--status-error)" : "transparent" }}>
+                {formErrors.phone || "."}
+              </span>
+              <span style={{ fontSize: "11px", color: editPhone.length === LIMITS.phone ? "var(--accent-primary)" : "var(--text-disabled)" }}>
+                {editPhone.length}/{LIMITS.phone}
+              </span>
+            </div>
+          </div>
+
+          {/* Profession */}
+          <div>
+            <Input
+              label="Profession"
+              value={editProfession}
+              onChange={(e) => { if (e.target.value.length <= LIMITS.profession) setEditProfession(e.target.value); setFormErrors((p) => ({ ...p, profession: "" })); }}
+              placeholder="e.g. Developer, Designer, Student"
+              style={formErrors.profession ? { borderColor: "var(--status-error)" } : undefined}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: editProfession.length >= LIMITS.profession ? "var(--status-error)" : "var(--text-disabled)" }}>
+                {editProfession.length}/{LIMITS.profession}
+              </span>
+            </div>
+          </div>
+
+          {/* Bio */}
           <div>
             <label
               style={{
@@ -649,8 +689,8 @@ export default function ProfilePage() {
             </label>
             <textarea
               value={editBio}
-              onChange={(e) => setEditBio(e.target.value)}
-              maxLength={200}
+              onChange={(e) => { if (e.target.value.length <= LIMITS.bio) setEditBio(e.target.value); setFormErrors((p) => ({ ...p, bio: "" })); }}
+              maxLength={LIMITS.bio}
               rows={3}
               placeholder="A few words about yourself..."
               style={{
@@ -659,25 +699,39 @@ export default function ProfilePage() {
                 backgroundColor: "var(--bg-primary)",
                 borderWidth: "1px",
                 borderStyle: "solid",
-                borderColor: "var(--border-default)",
+                borderColor: formErrors.bio ? "var(--status-error)" : "var(--border-default)",
                 borderRadius: "var(--radius-md)",
                 color: "var(--text-primary)",
                 fontSize: "14px",
                 fontFamily: "inherit",
                 resize: "vertical",
                 outline: "none",
+                transition: "border-color var(--transition-fast)",
               }}
             />
-            <span style={{ fontSize: "11px", color: "var(--text-disabled)", float: "right" }}>
-              {editBio.length}/200
-            </span>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: editBio.length >= LIMITS.bio * 0.9 ? (editBio.length >= LIMITS.bio ? "var(--status-error)" : "var(--status-warning)") : "var(--text-disabled)" }}>
+                {editBio.length}/{LIMITS.bio}
+              </span>
+            </div>
           </div>
-          <Input
-            label="Goal"
-            value={editGoal}
-            onChange={(e) => setEditGoal(e.target.value)}
-            placeholder="What are you working towards?"
-          />
+
+          {/* Goal */}
+          <div>
+            <Input
+              label="Goal"
+              value={editGoal}
+              onChange={(e) => { if (e.target.value.length <= LIMITS.goal) setEditGoal(e.target.value); setFormErrors((p) => ({ ...p, goal: "" })); }}
+              placeholder="What are you working towards?"
+              style={formErrors.goal ? { borderColor: "var(--status-error)" } : undefined}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+              <span style={{ fontSize: "11px", color: editGoal.length >= LIMITS.goal ? "var(--status-error)" : "var(--text-disabled)" }}>
+                {editGoal.length}/{LIMITS.goal}
+              </span>
+            </div>
+          </div>
+
           <Button variant="primary" fullWidth onClick={handleSaveProfile} isLoading={isSaving}>
             {hasProfileDetails ? "Save Changes" : "Save Profile"}
           </Button>
