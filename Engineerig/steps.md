@@ -208,7 +208,7 @@
 
 ### Tasks
 
-- [ ] **4.1 — Daily Log Page** (`app/(dashboard)/log/page.tsx`)
+- [x] **4.1 — Daily Log Page** (`app/(dashboard)/log/page.tsx`)
   - Date selector at top (today by default, can navigate ±)
   - Two sections: **Habits** and **Calories**
   - Habits section:
@@ -218,13 +218,13 @@
   - Auto-save on toggle/input
   → Verify: Toggle a habit → `habit_entries` row created/updated in Supabase
 
-- [ ] **4.2 — Habit Completion Dots UI**
+- [x] **4.2 — Habit Completion Dots UI**
   - Design system spec: filled circle `#10B981` (completed), outlined circle `#475569` (incomplete)
   - Smooth toggle transition (scale 0.97 press, color fade)
   - Phosphor `CheckCircle` for completed state
   → Verify: Visual matches design system, animation feels snappy
 
-- [ ] **4.3 — Calorie Logging Section**
+- [x] **4.3 — Calorie Logging Section**
   - "Add Food" button opens bottom sheet
   - Fields: food name, calories, meal type (breakfast/lunch/dinner/snack)
   - Show running total vs daily target
@@ -232,7 +232,7 @@
   - Remember last selected meal type
   → Verify: Add food → total updates, persists in `food_logs` table
 
-- [ ] **4.4 — Calorie Progress Ring**
+- [x] **4.4 — Calorie Progress Ring**
   - Circular progress indicator (design system §7.5)
   - Dark track `#334155`, progress fill `#10B981`
   - Bold number in center showing consumed/target
@@ -247,7 +247,7 @@
 
 ### Tasks
 
-- [ ] **5.1 — Dashboard Page** (`app/(dashboard)/dashboard/page.tsx`)
+- [x] **5.1 — Dashboard Page** (`app/(dashboard)/dashboard/page.tsx`)
   - Today's completion summary (X of Y habits done)
   - Current streak counter (with Fire icon)
   - Calorie ring widget (today)
@@ -255,7 +255,7 @@
   - Quick action: "Log Today" button → navigates to Log page
   → Verify: Dashboard data matches actual entries for today
 
-- [ ] **5.2 — Analytics Page** (`app/(dashboard)/analytics/page.tsx`)
+- [x] **5.2 — Analytics Page** (`app/(dashboard)/analytics/page.tsx`)
   - Time range selector: Last 7 days / 30 days
   - **Line Chart** (Recharts): Daily completion % over time
     - Dark grid lines, high contrast data lines
@@ -264,7 +264,7 @@
   - Streaks summary
   → Verify: Chart renders with real data, responsive on mobile
 
-- [ ] **5.3 — Weekly Summary Card**
+- [x] **5.3 — Weekly Summary Card**
   - Completion percentage
   - Best streak
   - Most improved habit
