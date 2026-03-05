@@ -113,8 +113,19 @@ export default function LogPage() {
     }
 
     // Fetch all in parallel
+    // Only show habits that existed on the selected date:
+    // - created on or before the selected date
+    // - not deleted, OR deleted after the selected date
+    const endOfDay = `${dateKey}T23:59:59.999Z`;
+
     const [habitsRes, categoriesRes, entriesRes, foodRes, settingsRes, recentRes] = await Promise.all([
-      supabase.from("habits").select("*").eq("active", true).order("created_at"),
+      supabase
+        .from("habits")
+        .select("*")
+        .eq("active", true)
+        .lte("created_at", endOfDay)
+        .or(`deleted_at.is.null,deleted_at.gt.${endOfDay}`)
+        .order("created_at"),
       supabase.from("categories").select("*").order("order"),
       supabase
         .from("habit_entries")
@@ -502,16 +513,24 @@ export default function LogPage() {
               {habits.length === 0 ? (
                 <Card padding="md">
                   <div style={{ textAlign: "center", padding: "var(--space-4)" }}>
-                    <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-                      No active habits to track.
-                    </p>
-                    <Button
-                      variant="secondary"
-                      onClick={() => router.push("/habits")}
-                      style={{ height: "36px", fontSize: "13px" }}
-                    >
-                      Add Habits
-                    </Button>
+                    {formatDate(selectedDate) === formatDate(new Date()) ? (
+                      <>
+                        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
+                          No active habits to track.
+                        </p>
+                        <Button
+                          variant="secondary"
+                          onClick={() => router.push("/habits")}
+                          style={{ height: "36px", fontSize: "13px" }}
+                        >
+                          Add Habits
+                        </Button>
+                      </>
+                    ) : (
+                      <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
+                        No habits were being tracked on this date.
+                      </p>
+                    )}
                   </div>
                 </Card>
               ) : (

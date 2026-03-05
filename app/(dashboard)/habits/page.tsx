@@ -40,6 +40,7 @@ export default function HabitsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [habitEntryCounts, setHabitEntryCounts] = useState<Record<string, number>>({});
   const router = useRouter();
   const supabase = createClient();
 
@@ -51,15 +52,31 @@ export default function HabitsPage() {
     }
 
     const [habitsRes, categoriesRes] = await Promise.all([
-      supabase.from("habits").select("*").order("created_at", { ascending: true }),
+      supabase.from("habits").select("*").is("deleted_at", null).order("created_at", { ascending: true }),
       supabase.from("categories").select("*").order("order", { ascending: true }),
     ]);
 
     if (habitsRes.error) toast.error("Failed to load habits");
     if (categoriesRes.error) toast.error("Failed to load categories");
 
-    setHabits(habitsRes.data || []);
+    const habitsList = habitsRes.data || [];
+    setHabits(habitsList);
     setCategories(categoriesRes.data || []);
+
+    // Fetch entry counts for each habit to determine edit eligibility
+    if (habitsList.length > 0) {
+      const { data: entryCounts } = await supabase
+        .from("habit_entries")
+        .select("habit_id")
+        .in("habit_id", habitsList.map((h: Habit) => h.id));
+
+      const counts: Record<string, number> = {};
+      (entryCounts || []).forEach((e: { habit_id: string }) => {
+        counts[e.habit_id] = (counts[e.habit_id] || 0) + 1;
+      });
+      setHabitEntryCounts(counts);
+    }
+
     setIsLoading(false);
   }, [supabase, router]);
 
@@ -77,7 +94,13 @@ export default function HabitsPage() {
     setSheetOpen(true);
   };
 
+  const hasEntries = (habitId: string): boolean => (habitEntryCounts[habitId] || 0) > 0;
+
   const openEditSheet = (habit: Habit) => {
+    if (hasEntries(habit.id)) {
+      toast.info("This habit has log entries. Only active status can be changed to preserve history.");
+      return;
+    }
     setEditingId(habit.id);
     setForm({
       name: habit.name,
@@ -149,9 +172,20 @@ export default function HabitsPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("habits").delete().eq("id", id);
-      if (error) throw error;
-      toast.success("Habit deleted");
+      if (hasEntries(id)) {
+        // Soft-delete: preserve entries for history
+        const { error } = await supabase
+          .from("habits")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", id);
+        if (error) throw error;
+        toast.success("Habit archived — history preserved");
+      } else {
+        // No entries: safe to hard-delete
+        const { error } = await supabase.from("habits").delete().eq("id", id);
+        if (error) throw error;
+        toast.success("Habit deleted");
+      }
       setDeleteConfirm(null);
       fetchData();
     } catch {
@@ -435,12 +469,14 @@ export default function HabitsPage() {
                           <button
                             onClick={() => openEditSheet(habit)}
                             aria-label={`Edit ${habit.name}`}
+                            title={hasEntries(habit.id) ? "Cannot edit — has log entries" : "Edit habit"}
                             style={{
                               background: "none",
                               border: "none",
-                              cursor: "pointer",
-                              color: "var(--text-muted)",
+                              cursor: hasEntries(habit.id) ? "not-allowed" : "pointer",
+                              color: hasEntries(habit.id) ? "var(--text-disabled)" : "var(--text-muted)",
                               padding: "var(--space-2)",
+                              opacity: hasEntries(habit.id) ? 0.4 : 1,
                             }}
                           >
                             <PencilSimple size={16} />
@@ -476,7 +512,9 @@ export default function HabitsPage() {
                           }}
                         >
                           <span style={{ fontSize: "13px", color: "var(--status-error)" }}>
-                            Delete this habit and all its entries?
+                            {hasEntries(habit.id)
+                              ? "Archive this habit? History will be preserved."
+                              : "Delete this habit permanently?"}
                           </span>
                           <div style={{ display: "flex", gap: "var(--space-2)" }}>
                             <Button

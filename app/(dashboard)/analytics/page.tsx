@@ -61,6 +61,7 @@ export default function AnalyticsPage() {
     const startDate = formatDate(new Date(Date.now() - rangeDays * 86400000));
 
     const [habitsRes, entriesRes, categoriesRes] = await Promise.all([
+      // Include deleted habits — they have valid historical entries
       supabase.from("habits").select("*"),
       supabase
         .from("habit_entries")
@@ -90,22 +91,35 @@ export default function AnalyticsPage() {
   // =========================================
   // DAILY COMPLETION CHART DATA
   // =========================================
-  const activeHabits = habits.filter((h) => h.active);
-  const totalActiveHabits = activeHabits.length;
+  // Helper: get habits that were active on a specific date
+  const getActiveHabitsForDate = (dateStr: string): Habit[] => {
+    const endOfDay = `${dateStr}T23:59:59.999Z`;
+    return habits.filter((h) => {
+      const createdBefore = h.created_at <= endOfDay;
+      const notDeletedYet = !h.deleted_at || h.deleted_at > endOfDay;
+      return h.active && createdBefore && notDeletedYet;
+    });
+  };
+
+  const todayActiveHabits = getActiveHabitsForDate(formatDate(new Date()));
+  const totalActiveHabitsToday = todayActiveHabits.length;
 
   const dailyData: { date: string; label: string; pct: number; completed: number; total: number }[] = [];
   for (let i = rangeDays - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     const key = formatDate(d);
-    const dayEntries = entries.filter((e) => e.entry_date === key && e.completed);
+    const dayActiveHabits = getActiveHabitsForDate(key);
+    const dayActiveIds = new Set(dayActiveHabits.map((h) => h.id));
+    const dayEntries = entries.filter((e) => e.entry_date === key && e.completed && dayActiveIds.has(e.habit_id));
     const completedCount = dayEntries.length;
-    const pct = totalActiveHabits > 0 ? Math.round((completedCount / totalActiveHabits) * 100) : 0;
+    const total = dayActiveHabits.length;
+    const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
     dailyData.push({
       date: key,
       label: shortDate(key),
       pct,
       completed: completedCount,
-      total: totalActiveHabits,
+      total,
     });
   }
 
@@ -117,7 +131,16 @@ export default function AnalyticsPage() {
       const catHabits = habits.filter((h) => h.category_id === cat.id);
       const catHabitIds = new Set(catHabits.map((h) => h.id));
       const catEntries = entries.filter((e) => catHabitIds.has(e.habit_id) && e.completed);
-      const totalPossible = catHabits.length * rangeDays;
+
+      // Calculate date-aware total possible: sum of active category habits per day
+      let totalPossible = 0;
+      for (let i = rangeDays - 1; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000);
+        const key = formatDate(d);
+        const dayActiveForCat = getActiveHabitsForDate(key).filter((h) => h.category_id === cat.id);
+        totalPossible += dayActiveForCat.length;
+      }
+
       const pct = totalPossible > 0 ? Math.round((catEntries.length / totalPossible) * 100) : 0;
       return {
         name: cat.name,
@@ -133,14 +156,18 @@ export default function AnalyticsPage() {
   // STREAK CALCULATION
   // =========================================
   let currentStreak = 0;
-  if (totalActiveHabits > 0) {
+  if (totalActiveHabitsToday > 0) {
     const d = new Date();
-    const todayEntries = entries.filter((e) => e.entry_date === formatDate(d) && e.completed);
-    if (todayEntries.length < totalActiveHabits) d.setDate(d.getDate() - 1);
+    const todayKey = formatDate(d);
+    const todayHabits = getActiveHabitsForDate(todayKey);
+    const todayEntries = entries.filter((e) => e.entry_date === todayKey && e.completed);
+    if (todayEntries.length < todayHabits.length) d.setDate(d.getDate() - 1);
     while (true) {
       const key = formatDate(d);
+      const dayHabits = getActiveHabitsForDate(key);
+      if (dayHabits.length === 0) break;
       const dayCompleted = entries.filter((e) => e.entry_date === key && e.completed).length;
-      if (dayCompleted >= totalActiveHabits) {
+      if (dayCompleted >= dayHabits.length) {
         currentStreak++;
         d.setDate(d.getDate() - 1);
       } else {
@@ -174,11 +201,23 @@ export default function AnalyticsPage() {
   let bestHabitName = "—";
   let bestHabitPct = 0;
   habitCompletionMap.forEach((count, habitId) => {
-    const pct = Math.round((count / rangeDays) * 100);
+    // Calculate actual active days for this habit in the range
+    const habit = habits.find((h) => h.id === habitId);
+    if (!habit) return;
+
+    let activeDays = 0;
+    for (let i = rangeDays - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = formatDate(d);
+      const endOfDay = `${key}T23:59:59.999Z`;
+      const wasActive = habit.created_at <= endOfDay && (!habit.deleted_at || habit.deleted_at > endOfDay);
+      if (wasActive) activeDays++;
+    }
+
+    const pct = activeDays > 0 ? Math.round((count / activeDays) * 100) : 0;
     if (pct > bestHabitPct) {
       bestHabitPct = pct;
-      const habit = habits.find((h) => h.id === habitId);
-      bestHabitName = habit?.name || "—";
+      bestHabitName = habit.name || "—";
     }
   });
 
@@ -263,7 +302,7 @@ export default function AnalyticsPage() {
               <Skeleton width="100%" height="160px" borderRadius="var(--radius-md)" />
             </SkeletonCard>
           </div>
-        ) : totalActiveHabits === 0 ? (
+        ) : totalActiveHabitsToday === 0 ? (
           <div style={{ textAlign: "center", padding: "var(--space-10)" }}>
             <p style={{ fontSize: "16px", fontWeight: 500, marginBottom: "var(--space-2)" }}>
               No habits to analyze yet
