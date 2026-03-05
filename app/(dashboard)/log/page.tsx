@@ -618,7 +618,11 @@ export default function LogPage() {
                               style={{
                                 fontSize: "15px",
                                 fontWeight: 500,
-                                color: "var(--text-primary)",
+                                color: isCompleted
+                                  ? "var(--text-primary)"
+                                  : "var(--text-secondary)",
+                                textDecoration: isCompleted ? "line-through" : "none",
+                                opacity: isCompleted ? 0.7 : 1,
                               }}
                             >
                               {habit.name}
@@ -637,11 +641,12 @@ export default function LogPage() {
                             )}
                           </div>
 
-                          {/* Duration input */}
+                          {/* Duration input - improved UX */}
                           <div
                             style={{
                               display: "flex",
-                              alignItems: "center",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
                               gap: "var(--space-1)",
                               flexShrink: 0,
                             }}
@@ -653,14 +658,14 @@ export default function LogPage() {
                               value={durationInput[habit.id] || ""}
                               onChange={(e) => updateDuration(habit, e.target.value)}
                               style={{
-                                width: "56px",
-                                height: "36px",
+                                width: "70px",
+                                height: "38px",
                                 textAlign: "center",
                                 fontSize: "14px",
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 fontFamily: "inherit",
-                                backgroundColor: "var(--bg-primary)",
-                                border: `1px solid ${
+                                backgroundColor: isCompleted ? "rgba(16, 185, 129, 0.08)" : "var(--bg-tertiary)",
+                                border: `2px solid ${
                                   isCompleted
                                     ? "var(--accent-primary)"
                                     : "var(--border-default)"
@@ -668,10 +673,18 @@ export default function LogPage() {
                                 borderRadius: "var(--radius-sm)",
                                 color: "var(--text-primary)",
                                 outline: "none",
+                                transition: "all var(--transition-fast)",
                               }}
                             />
-                            <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                              / {habit.target_value} {habit.unit || "min"}
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: "var(--text-muted)",
+                                fontWeight: 500,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              min {habit.target_value} · ideal {habit.unit || "min"}
                             </span>
                           </div>
                         </div>
