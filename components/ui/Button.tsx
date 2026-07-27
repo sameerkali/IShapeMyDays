@@ -1,16 +1,16 @@
 import type { CSSProperties, ReactNode, ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: Variant;
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
   fullWidth?: boolean;
   isLoading?: boolean;
   children: ReactNode;
   style?: CSSProperties;
 };
 
-const variantStyles: Record<Variant, CSSProperties> = {
+const variantStyles: Record<ButtonVariant, CSSProperties> = {
   primary: {
     backgroundColor: "var(--white)",
     color: "var(--black)",
@@ -33,7 +33,7 @@ const variantStyles: Record<Variant, CSSProperties> = {
   },
 };
 
-const hoverStyles: Record<Variant, CSSProperties> = {
+const hoverStyles: Record<ButtonVariant, CSSProperties> = {
   primary: { backgroundColor: "var(--gray-200)", borderColor: "var(--gray-200)" },
   secondary: { backgroundColor: "var(--bg-elevated)", borderColor: "var(--white)" },
   ghost: { backgroundColor: "var(--bg-elevated)", color: "var(--text-primary)" },

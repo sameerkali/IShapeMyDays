@@ -1,6 +1,6 @@
 "use client";
 
-type ProgressRingProps = {
+export type ProgressRingProps = {
   value: number;
   max: number;
   size?: number;

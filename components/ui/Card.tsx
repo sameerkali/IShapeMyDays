@@ -1,12 +1,13 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, HTMLAttributes } from "react";
 
-type CardProps = {
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   padding?: "none" | "sm" | "md" | "lg";
+  hoverable?: boolean;
   style?: CSSProperties;
-  onClick?: () => void;
+  onClick?: (e?: any) => void;
   className?: string;
-};
+}
 
 const paddingMap = {
   none: "0",
@@ -15,7 +16,9 @@ const paddingMap = {
   lg: "20px",
 };
 
-export function Card({ children, padding = "md", style, onClick, className }: CardProps) {
+export function Card({ children, padding = "md", hoverable, style, onClick, className, ...props }: CardProps) {
+  const isInteractive = Boolean(onClick || hoverable);
+
   return (
     <div
       onClick={onClick}
@@ -25,20 +28,22 @@ export function Card({ children, padding = "md", style, onClick, className }: Ca
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",
         padding: paddingMap[padding],
-        cursor: onClick ? "pointer" : undefined,
-        transition: onClick ? "background var(--t-fast), border-color var(--t-fast)" : undefined,
+        cursor: isInteractive ? "pointer" : undefined,
+        transition: isInteractive ? "background var(--t-fast), border-color var(--t-fast)" : undefined,
         ...style,
       }}
-      onMouseEnter={onClick ? (e) => {
+      onMouseEnter={isInteractive ? (e) => {
         e.currentTarget.style.backgroundColor = "var(--bg-elevated)";
         e.currentTarget.style.borderColor = "var(--border-strong)";
       } : undefined}
-      onMouseLeave={onClick ? (e) => {
+      onMouseLeave={isInteractive ? (e) => {
         e.currentTarget.style.backgroundColor = "var(--bg-surface)";
         e.currentTarget.style.borderColor = "var(--border)";
       } : undefined}
+      {...props}
     >
       {children}
     </div>
   );
 }
+

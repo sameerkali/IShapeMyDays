@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, ReactNode } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card } from "@/components/ui/Card";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -74,7 +74,9 @@ export default function AnalyticsPage() {
   const [currentCalorieTarget, setCurrentCalorieTarget] = useState(2000);
   const [targetHistory, setTargetHistory] = useState<{ target: number; effectiveFrom: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [hoveredDay, setHoveredDay] = useState<{ date: string; pct: number; completed: number; total: number } | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<{
+    label: ReactNode; date: string; pct: number; completed: number; total: number 
+} | null>(null);
 
   const fetchData = useCallback(async () => {
     try {

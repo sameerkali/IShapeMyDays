@@ -1,12 +1,13 @@
 import type { CSSProperties, InputHTMLAttributes } from "react";
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & {
+export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
   error?: string;
+  helperText?: string;
   style?: CSSProperties;
 };
 
-export function Input({ label, error, style, onFocus, onBlur, id, ...rest }: InputProps) {
+export function Input({ label, error, helperText, style, onFocus, onBlur, id, ...rest }: InputProps) {
   const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
 
   return (
@@ -53,11 +54,16 @@ export function Input({ label, error, style, onFocus, onBlur, id, ...rest }: Inp
         }}
         {...rest}
       />
-      {error && (
+      {error ? (
         <span style={{ fontSize: "11px", color: "var(--status-error)", marginTop: "2px", fontWeight: 500 }}>
           {error}
         </span>
-      )}
+      ) : helperText ? (
+        <span style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+          {helperText}
+        </span>
+      ) : null}
     </div>
   );
 }
+

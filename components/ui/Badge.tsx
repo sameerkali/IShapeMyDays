@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, HTMLAttributes } from "react";
 
-type BadgeVariant = "default" | "success" | "warning" | "error" | "neutral";
+export type BadgeVariant = "default" | "success" | "warning" | "error" | "neutral" | "accent";
 
 const variantMap: Record<BadgeVariant, CSSProperties> = {
   default: {
@@ -28,15 +28,20 @@ const variantMap: Record<BadgeVariant, CSSProperties> = {
     color: "var(--text-muted)",
     border: "1px solid var(--border)",
   },
+  accent: {
+    backgroundColor: "rgba(99,102,241,0.12)",
+    color: "var(--accent, #6366f1)",
+    border: "1px solid rgba(99,102,241,0.3)",
+  },
 };
 
-type BadgeProps = {
+export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   children: ReactNode;
   variant?: BadgeVariant;
   style?: CSSProperties;
-};
+}
 
-export function Badge({ children, variant = "default", style }: BadgeProps) {
+export function Badge({ children, variant = "default", style, ...props }: BadgeProps) {
   return (
     <span
       style={{
@@ -53,8 +58,10 @@ export function Badge({ children, variant = "default", style }: BadgeProps) {
         ...variantMap[variant],
         ...style,
       }}
+      {...props}
     >
       {children}
     </span>
   );
 }
+
