@@ -114,11 +114,30 @@ export default async function DashboardPage() {
 
           {/* Calories */}
           <Card padding="md">
-            <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>
-              Calories
-            </p>
-            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
-              {totalCalories} <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-muted)" }}>/ {calorieTarget}</span>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>
+                  Calories
+                </p>
+                <div style={{ fontSize: "26px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
+                  {totalCalories} <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text-muted)" }}>/ {calorieTarget} kcal</span>
+                </div>
+              </div>
+
+              {/* Exact Percentage Badge */}
+              <div style={{
+                fontSize: "16px",
+                fontWeight: 800,
+                color: totalCalories > calorieTarget ? "var(--status-error)" : "var(--white)",
+                backgroundColor: totalCalories > calorieTarget ? "rgba(248,113,113,0.12)" : "var(--bg-elevated)",
+                border: `1px solid ${totalCalories > calorieTarget ? "rgba(248,113,113,0.3)" : "var(--border-strong)"}`,
+                padding: "4px 8px",
+                borderRadius: "var(--radius-sm)",
+                lineHeight: 1,
+                letterSpacing: "-0.02em",
+              }}>
+                {calPct}%
+              </div>
             </div>
             
             {/* Status Message */}
@@ -126,7 +145,7 @@ export default async function DashboardPage() {
               fontSize: "11px",
               fontWeight: 700,
               color: totalCalories <= calorieTarget ? "var(--status-success)" : "var(--status-error)",
-              marginTop: "6px",
+              marginTop: "8px",
               lineHeight: 1.3,
             }}>
               {totalCalories <= calorieTarget ? "achee aadmi" : "mote gande mann jaa warna fat jaiga."}
@@ -142,14 +161,14 @@ export default async function DashboardPage() {
                   transition: "width 0.6s ease",
                 }} />
               </div>
-              {/* Ticks/points */}
+              {/* Ticks showing 0%, 50%, target 100% and exact % */}
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "9px", color: "var(--text-muted)", fontWeight: 600 }}>
                 <span>0%</span>
                 <span>50%</span>
-                <span>100%</span>
-                {calPct > 100 && (
-                  <span style={{ color: "var(--status-error)", fontWeight: 800 }}>{calPct}%</span>
-                )}
+                <span>Target 100%</span>
+                <span style={{ color: totalCalories > calorieTarget ? "var(--status-error)" : "var(--white)", fontWeight: 700 }}>
+                  Exact: {calPct}%
+                </span>
               </div>
             </div>
           </Card>

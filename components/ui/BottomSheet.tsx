@@ -44,7 +44,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
         }}
       />
 
-      {/* Sheet */}
+      {/* Sheet — Fixed horizontal layout centering to eliminate animation jump/fluctuation */}
       <div
         ref={sheetRef}
         role="dialog"
@@ -53,8 +53,9 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
         style={{
           position: "fixed",
           bottom: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: 0,
+          right: 0,
+          margin: "0 auto",
           width: "100%",
           maxWidth: "640px",
           maxHeight: "90dvh",
@@ -64,7 +65,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
           borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
           zIndex: 101,
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
-          animation: "slideUp 0.22s ease",
+          animation: "slideUp 0.18s ease-out",
         }}
       >
         {/* Header */}
