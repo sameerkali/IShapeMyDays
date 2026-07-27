@@ -114,17 +114,43 @@ export default async function DashboardPage() {
 
           {/* Calories */}
           <Card padding="md">
-            <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "8px" }}>
+            <p style={{ fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>
               Calories
             </p>
-            <div style={{ fontSize: "32px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
-              {totalCalories}
+            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
+              {totalCalories} <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-muted)" }}>/ {calorieTarget}</span>
             </div>
-            <p style={{ fontSize: "11px", color: calorieTarget - totalCalories < 0 ? "var(--status-error)" : "var(--text-muted)", marginTop: "4px" }}>
-              of {calorieTarget} target
+            
+            {/* Status Message */}
+            <p style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: totalCalories <= calorieTarget ? "var(--status-success)" : "var(--status-error)",
+              marginTop: "6px",
+              lineHeight: 1.3,
+            }}>
+              {totalCalories <= calorieTarget ? "achee aadmi" : "mote gande mann jaa warna fat jaiga."}
             </p>
-            <div style={{ marginTop: "8px", height: "3px", backgroundColor: "var(--border)", borderRadius: "2px", overflow: "hidden" }}>
-              <div style={{ width: `${calPct}%`, height: "100%", backgroundColor: totalCalories > calorieTarget ? "var(--status-error)" : "var(--white)", transition: "width 0.6s ease" }} />
+
+            {/* Progress bar with ticks */}
+            <div style={{ marginTop: "10px" }}>
+              <div style={{ height: "4px", backgroundColor: "var(--border)", borderRadius: "2px", overflow: "hidden" }}>
+                <div style={{
+                  width: `${Math.min(calPct, 100)}%`,
+                  height: "100%",
+                  backgroundColor: totalCalories > calorieTarget ? "var(--status-error)" : "var(--white)",
+                  transition: "width 0.6s ease",
+                }} />
+              </div>
+              {/* Ticks/points */}
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "4px", fontSize: "9px", color: "var(--text-muted)", fontWeight: 600 }}>
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
+                {calPct > 100 && (
+                  <span style={{ color: "var(--status-error)", fontWeight: 800 }}>{calPct}%</span>
+                )}
+              </div>
             </div>
           </Card>
         </div>

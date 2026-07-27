@@ -149,3 +149,26 @@ const CalorieSettingSchema = new Schema<ICalorieSetting>({
 }, { versionKey: false });
 
 export const CalorieSettingModel = models.CalorieSetting || model<ICalorieSetting>("CalorieSetting", CalorieSettingSchema);
+
+// =========================================
+// CALORIE TARGET HISTORY
+// =========================================
+export interface ICalorieTargetHistory extends Document {
+    userId: string;
+    dailyTarget: number;
+    effectiveFrom: string; // YYYY-MM-DD
+    createdAt: string;
+}
+
+const CalorieTargetHistorySchema = new Schema<ICalorieTargetHistory>({
+    userId: { type: String, required: true, default: "user-1" },
+    dailyTarget: { type: Number, required: true },
+    effectiveFrom: { type: String, required: true },
+    createdAt: { type: String, default: () => new Date().toISOString() },
+}, { versionKey: false });
+
+CalorieTargetHistorySchema.index({ userId: 1, effectiveFrom: -1 });
+
+export const CalorieTargetHistoryModel =
+    models.CalorieTargetHistory || model<ICalorieTargetHistory>("CalorieTargetHistory", CalorieTargetHistorySchema);
+

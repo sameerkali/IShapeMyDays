@@ -8,7 +8,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar,
 } from "recharts";
-import type { Habit, HabitEntry, Category } from "@/lib/types/database";
+import type { Habit, HabitEntry, Category, FoodLog } from "@/lib/types/database";
 import { fetchAnalyticsPageData } from "@/lib/server/actions";
 
 function formatDate(date: Date): string {
@@ -25,7 +25,6 @@ function dayName(dateStr: string): string {
 
 type RangeKey = "7" | "30";
 
-// GitHub Green Heatmap Color Helper
 function getGitHubGreen(pct: number, hasTotal: boolean): { fill: string; border: string } {
   if (!hasTotal || pct === 0) return { fill: "#161b22", border: "#21262d" };
   if (pct <= 25) return { fill: "#0e4429", border: "#0e4429" };
@@ -34,7 +33,6 @@ function getGitHubGreen(pct: number, hasTotal: boolean): { fill: string; border:
   return { fill: "#39d353", border: "#39d353" };
 }
 
-// ── STAT BOX ──────────────────────────────────────
 function StatBox({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div
@@ -56,7 +54,6 @@ function StatBox({ label, value, sub }: { label: string; value: string | number;
   );
 }
 
-// ── CUSTOM TOOLTIP ───────────────────────────────
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
@@ -73,6 +70,9 @@ export default function AnalyticsPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [entries, setEntries] = useState<HabitEntry[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [currentCalorieTarget, setCurrentCalorieTarget] = useState(2000);
+  const [targetHistory, setTargetHistory] = useState<{ target: number; effectiveFrom: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredDay, setHoveredDay] = useState<{ date: string; pct: number; completed: number; total: number } | null>(null);
 
@@ -82,11 +82,22 @@ export default function AnalyticsPage() {
       setHabits(data.habits);
       setEntries(data.entries);
       setCategories(data.categories);
+      setFoodLogs(data.foodLogs || []);
+      setCurrentCalorieTarget(data.currentCalorieTarget || 2000);
+      setTargetHistory(data.targetHistory || []);
     } catch { /* ignore */ }
     finally { setIsLoading(false); }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Dynamic Target Lookup for Historical Integrity
+  const getHistoricalTarget = useCallback((dateStr: string): number => {
+    if (!targetHistory.length) return currentCalorieTarget;
+    // Find latest record with effectiveFrom <= dateStr
+    const match = [...targetHistory].reverse().find((h) => h.effectiveFrom <= dateStr);
+    return match ? match.target : currentCalorieTarget;
+  }, [targetHistory, currentCalorieTarget]);
 
   // ── HELPERS ───────────────────────────────────
   const getActiveHabitsForDate = (dateStr: string): Habit[] => {
@@ -114,6 +125,23 @@ export default function AnalyticsPage() {
     const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
     dailyData.push({ date: key, label: shortDate(key), dayLabel: dayName(key), pct, completed: completedCount, total });
   }
+
+  // ── KCAL BUDGET COMPUTATIONS (DYNAMIC & HISTORICAL) ──
+  let periodKcalBudget = 0;
+  let periodKcalConsumed = 0;
+
+  dailyData.forEach((d) => {
+    const dailyTarget = getHistoricalTarget(d.date);
+    periodKcalBudget += dailyTarget;
+    const dayFoods = foodLogs.filter((f) => f.logged_at.startsWith(d.date));
+    const dayCalories = dayFoods.reduce((sum, f) => sum + f.calories, 0);
+    periodKcalConsumed += dayCalories;
+  });
+
+  const periodKcalDiff = periodKcalBudget - periodKcalConsumed;
+  const isKcalOver = periodKcalDiff < 0;
+  const kcalPct = periodKcalBudget > 0 ? Math.round((periodKcalConsumed / periodKcalBudget) * 100) : 0;
+  const dailyAvgKcal = rangeDays > 0 ? Math.round(periodKcalConsumed / rangeDays) : 0;
 
   // ── 30-DAY GITHUB HEATMAP DATA ─────────────────
   const githubHeatmapDays: { date: string; label: string; dayLabel: string; pct: number; completed: number; total: number }[] = [];
@@ -189,10 +217,7 @@ export default function AnalyticsPage() {
     ? Math.round(dailyData.reduce((sum, d) => sum + d.pct, 0) / dailyData.length)
     : 0;
 
-  // ── MOMENTUM DELTA ─────────────────────────────
   const momentumDelta = avgCompletion - prevAvgPct;
-
-  // ── TOTAL COMPLETIONS ──────────────────────────
   const totalCompletions = entries.filter((e) => e.completed).length;
 
   // ── TOTAL DURATION TRACKED ─────────────────────
@@ -204,21 +229,17 @@ export default function AnalyticsPage() {
     ? `${(totalDurationMinutes / 60).toFixed(1)} hrs`
     : `${totalDurationMinutes} mins`;
 
-  // ── PERFECT DAYS ───────────────────────────────
   const perfectDays = dailyData.filter((d) => d.pct === 100 && d.total > 0).length;
 
-  // ── CONSISTENCY INDEX SCORE ─────────────────────
   const perfectRatio = rangeDays > 0 ? (perfectDays / rangeDays) * 100 : 0;
   const streakBonus = Math.min((currentStreak / 10) * 100, 100);
   const consistencyIndex = Math.min(100, Math.round((avgCompletion * 0.6) + (perfectRatio * 0.25) + (streakBonus * 0.15)));
 
-  // ── WORST DAY ──────────────────────────────────
   const daysWithData = dailyData.filter((d) => d.total > 0);
   const worstDay = daysWithData.length > 0
     ? daysWithData.reduce((min, d) => d.pct < min.pct ? d : min, daysWithData[0])
     : null;
 
-  // ── BEST HABIT ─────────────────────────────────
   const habitCompletionMap = new Map<string, number>();
   entries.filter((e) => e.completed).forEach((e) => {
     habitCompletionMap.set(e.habit_id, (habitCompletionMap.get(e.habit_id) || 0) + 1);
@@ -240,7 +261,6 @@ export default function AnalyticsPage() {
     if (pct > bestHabitPct) { bestHabitPct = pct; bestHabitName = habit.name || "—"; }
   });
 
-  // ── PER-HABIT RATES & PERFORMANCE TIERS ────────
   const habitRates = habits
     .filter((h) => !h.deleted_at)
     .map((h) => {
@@ -262,7 +282,6 @@ export default function AnalyticsPage() {
   const moderatePerformers = habitRates.filter((h) => h.pct >= 50 && h.pct < 80).length;
   const focusPerformers = habitRates.filter((h) => h.pct < 50).length;
 
-  // ── BEST DAY OF WEEK ───────────────────────────
   const dayOfWeekMap: Record<string, { total: number; completed: number }> = {};
   dailyData.forEach((d) => {
     const dow = d.dayLabel;
@@ -358,7 +377,57 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        {/* ── GITHUB-STYLE CONTRIBUTION HEAT GRAPH CARD (Green shades) ── */}
+        {/* ── DYNAMIC KCAL BUDGET ANALYTICS CARD ── */}
+        <Card padding="md">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <div>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)" }}>
+                {rangeDays}-Day Calorie Budget
+              </p>
+              <p style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em", marginTop: "2px" }}>
+                {periodKcalConsumed.toLocaleString()} <span style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-muted)" }}>/ {periodKcalBudget.toLocaleString()} kcal</span>
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "4px 8px",
+                borderRadius: "var(--radius-xs)",
+                backgroundColor: isKcalOver ? "rgba(248,113,113,0.12)" : "rgba(74,222,128,0.12)",
+                color: isKcalOver ? "var(--status-error)" : "#39d353",
+                border: `1px solid ${isKcalOver ? "rgba(248,113,113,0.3)" : "rgba(74,222,128,0.3)"}`,
+              }}>
+                {isKcalOver ? `+${Math.abs(periodKcalDiff)} OVER` : `${periodKcalDiff} REMAINING`}
+              </span>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: "6px", backgroundColor: "var(--border)", borderRadius: "3px", overflow: "hidden", marginBottom: "10px" }}>
+            <div style={{
+              width: `${Math.min(kcalPct, 100)}%`,
+              height: "100%",
+              backgroundColor: isKcalOver ? "var(--status-error)" : "#39d353",
+              transition: "width 0.6s ease",
+            }} />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-muted)" }}>
+            <span>Used: <strong style={{ color: "var(--text-primary)" }}>{kcalPct}%</strong></span>
+            <span>Daily Avg: <strong style={{ color: "var(--text-primary)" }}>{dailyAvgKcal} kcal/day</strong></span>
+          </div>
+
+          {isKcalOver && (
+            <div style={{ marginTop: "10px", padding: "8px 10px", backgroundColor: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: "var(--radius-sm)" }}>
+              <p style={{ fontSize: "11px", color: "var(--status-error)", fontWeight: 600 }}>
+                ⚠️ Over your {rangeDays}-day budget by +{Math.abs(periodKcalDiff)} kcal total. Reduce daily intake to realign.
+              </p>
+            </div>
+          )}
+        </Card>
+
+        {/* ── GITHUB-STYLE CONTRIBUTION HEAT GRAPH CARD ── */}
         <Card padding="md">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
             <div>
@@ -376,7 +445,6 @@ export default function AnalyticsPage() {
             )}
           </div>
 
-          {/* GitHub Grid Layout (7 rows for days Sun-Sat or 5x6 grid) */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: "5px" }}>
             {githubHeatmapDays.map((d) => {
               const colors = getGitHubGreen(d.pct, d.total > 0);
@@ -399,7 +467,6 @@ export default function AnalyticsPage() {
             })}
           </div>
 
-          {/* GitHub Heatmap Legend */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "5px", marginTop: "14px" }}>
             <span style={{ fontSize: "9px", color: "var(--text-muted)", marginRight: "4px" }}>Less</span>
             {[

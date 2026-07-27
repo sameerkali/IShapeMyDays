@@ -208,22 +208,7 @@ export default function ProfilePage() {
           </Card>
         )}
 
-        {/* ── CONTACT INFO ── */}
-        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-          <MenuItem icon={<Envelope size={16} />} label="Email" value={profile?.email || userEmail} />
-          {profile?.phone && (
-            <>
-              <div style={{ height: "1px", backgroundColor: "var(--border)" }} />
-              <MenuItem icon={<Phone size={16} />} label="Phone" value={profile.phone} />
-            </>
-          )}
-          {profile?.profession && (
-            <>
-              <div style={{ height: "1px", backgroundColor: "var(--border)" }} />
-              <MenuItem icon={<Briefcase size={16} />} label="Profession" value={profile.profession} />
-            </>
-          )}
-        </div>
+    
 
         {/* ── MANAGE ── */}
         <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>

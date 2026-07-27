@@ -39,7 +39,6 @@ type FoodFormData = { food_name: string; calories: string; meal_type: MealType }
 export default function LogPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const dateKey = formatDate(selectedDate);
-  const isStartDate = dateKey <= APP_START_DATE;
 
   const [habits, setHabits] = useState<(Habit & { category?: Category })[]>([]);
   const [entries, setEntries] = useState<HabitEntry[]>([]);
@@ -80,10 +79,15 @@ export default function LogPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const todayStr = formatDate(new Date());
+  const isToday = dateKey >= todayStr;
+  const isStartDate = dateKey <= APP_START_DATE;
+
   const goDay = (offset: number) => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + offset);
-    if (formatDate(d) < APP_START_DATE) return;
+    const targetKey = formatDate(d);
+    if (targetKey < APP_START_DATE || targetKey > todayStr) return;
     setSelectedDate(d);
   };
 
@@ -191,8 +195,19 @@ export default function LogPage() {
           </div>
           <button
             onClick={() => goDay(1)}
+            disabled={isToday}
             aria-label="Next day"
-            style={{ padding: "12px 16px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", borderLeft: "1px solid var(--border)", display: "flex", alignItems: "center" }}
+            style={{
+              padding: "12px 16px",
+              background: "none",
+              border: "none",
+              cursor: isToday ? "not-allowed" : "pointer",
+              color: isToday ? "var(--text-disabled)" : "var(--text-muted)",
+              borderLeft: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              opacity: isToday ? 0.3 : 1,
+            }}
           >
             <CaretRight size={16} weight="bold" />
           </button>
@@ -373,7 +388,7 @@ export default function LogPage() {
                       { label: "Target", value: calorieTarget, color: "var(--text-muted)" },
                       {
                         label: "Remaining",
-                        value: calorieTarget - totalCalories >= 0 ? calorieTarget - totalCalories : `+${totalCalories - calorieTarget}`,
+                        value: calorieTarget - totalCalories >= 0 ? calorieTarget - totalCalories : `+${totalCalories - calorieTarget} over`,
                         color: calorieTarget - totalCalories >= 0 ? "var(--text-primary)" : "var(--status-error)",
                       },
                     ].map(({ label, value, color }) => (
@@ -384,6 +399,18 @@ export default function LogPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* Calorie Overage Warning Banner */}
+                {totalCalories > calorieTarget && (
+                  <div style={{ marginTop: "16px", padding: "12px 14px", backgroundColor: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "var(--radius-sm)" }}>
+                    <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--status-error)", marginBottom: "4px" }}>
+                      ⚠️ You ate too much! Please control yourself.
+                    </p>
+                    <p style={{ fontSize: "11px", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                      You exceeded target by +{totalCalories - calorieTarget} kcal today. Deduct ~{Math.round((totalCalories - calorieTarget) / 6)} kcal/day for remaining days this week to balance your weekly budget.
+                    </p>
+                  </div>
+                )}
               </Card>
 
               {/* Food log list */}

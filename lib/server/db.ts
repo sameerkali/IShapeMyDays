@@ -6,6 +6,7 @@ import {
     HabitEntryModel,
     FoodLogModel,
     CalorieSettingModel,
+    CalorieTargetHistoryModel,
 } from "./models";
 import type { Category, Habit, HabitEntry, FoodLog, Profile, CalorieSetting } from "@/lib/types/database";
 
@@ -295,12 +296,26 @@ export async function getCalorieSetting(): Promise<CalorieSetting> {
     if (!doc) {
         const created = await CalorieSettingModel.create({
             userId: USER_ID,
-            dailyTarget: 2200,
+            dailyTarget: 2000,
             updatedAt: new Date().toISOString(),
         });
         return toCalorieSetting(created);
     }
     return toCalorieSetting(doc);
+}
+
+export async function getCalorieTargetForDate(dateStr: string): Promise<number> {
+    await connectDB();
+    const historyDoc = await CalorieTargetHistoryModel.findOne({
+        userId: USER_ID,
+        effectiveFrom: { $lte: dateStr },
+    }).sort({ effectiveFrom: -1 });
+
+    if (historyDoc) {
+        return historyDoc.dailyTarget;
+    }
+    const currentSetting = await getCalorieSetting();
+    return currentSetting.daily_target;
 }
 
 export async function updateCalorieSetting(dailyTarget: number): Promise<CalorieSetting> {
@@ -310,5 +325,22 @@ export async function updateCalorieSetting(dailyTarget: number): Promise<Calorie
         { $set: { dailyTarget, updatedAt: new Date().toISOString() } },
         { returnDocument: 'after', upsert: true }
     );
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    await CalorieTargetHistoryModel.findOneAndUpdate(
+        { userId: USER_ID, effectiveFrom: todayStr },
+        { $set: { dailyTarget, createdAt: new Date().toISOString() } },
+        { upsert: true, returnDocument: 'after' }
+    );
+
     return toCalorieSetting(doc!);
+}
+
+export async function getCalorieTargetHistory(): Promise<{ target: number; effectiveFrom: string }[]> {
+    await connectDB();
+    const docs = await CalorieTargetHistoryModel.find({ userId: USER_ID }).sort({ effectiveFrom: 1 });
+    return docs.map((doc: any) => ({
+        target: doc.dailyTarget as number,
+        effectiveFrom: doc.effectiveFrom as string,
+    }));
 }

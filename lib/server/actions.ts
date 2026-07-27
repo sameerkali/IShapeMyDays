@@ -48,7 +48,7 @@ export async function fetchLogPageData(dateStr: string) {
     const categories = await db.getCategories();
     const entries = await db.getHabitEntries(dateStr);
     const foodLogs = await db.getFoodLogs(dateStr);
-    const calorieSetting = await db.getCalorieSetting();
+    const calorieTarget = await db.getCalorieTargetForDate(dateStr);
     const recentFoods = await db.getFoodLogs();
 
     return {
@@ -56,7 +56,7 @@ export async function fetchLogPageData(dateStr: string) {
         categories,
         entries,
         foodLogs,
-        calorieTarget: calorieSetting.daily_target,
+        calorieTarget,
         recentFoods,
     };
 }
@@ -65,7 +65,20 @@ export async function fetchAnalyticsPageData() {
     const habits = await db.getAllHabitsIncludeDeleted();
     const entries = await db.getHabitEntries();
     const categories = await db.getCategories();
-    return { habits, entries, categories };
+    const foodLogs = await db.getFoodLogs();
+    const calorieSetting = await db.getCalorieSetting();
+    
+    // Fetch all historical calorie target settings
+    const targetHistory = await db.getCalorieTargetHistory();
+
+    return {
+        habits,
+        entries,
+        categories,
+        foodLogs,
+        currentCalorieTarget: calorieSetting.daily_target,
+        targetHistory,
+    };
 }
 
 export async function fetchProfilePageData() {

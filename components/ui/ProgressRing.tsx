@@ -9,10 +9,11 @@ type ProgressRingProps = {
 };
 
 export function ProgressRing({ value, max, size = 80, strokeWidth = 6, label }: ProgressRingProps) {
-  const pct = max > 0 ? Math.min(value / max, 1) : 0;
+  const displayPct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const clampedRatio = max > 0 ? Math.min(value / max, 1) : 0;
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
-  const dash = pct * circumference;
+  const dash = clampedRatio * circumference;
   const isOver = max > 0 && value > max;
 
   return (
@@ -69,14 +70,14 @@ export function ProgressRing({ value, max, size = 80, strokeWidth = 6, label }: 
       >
         <span
           style={{
-            fontSize: size > 90 ? "18px" : "14px",
+            fontSize: size > 90 ? (displayPct >= 1000 ? "14px" : "18px") : "13px",
             fontWeight: 800,
             letterSpacing: "-0.03em",
             lineHeight: 1,
-            color: "var(--text-primary)",
+            color: isOver ? "var(--status-error)" : "var(--text-primary)",
           }}
         >
-          {Math.round(pct * 100)}%
+          {displayPct}%
         </span>
         {label && (
           <span
