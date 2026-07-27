@@ -1,6 +1,7 @@
-const CACHE_NAME = "ishapemydays-v1";
+const CACHE_NAME = "ishapemydays-v2";
 const ASSETS_TO_CACHE = [
   "/",
+  "/offline",
   "/manifest.json",
   "/favicon.ico",
   "/icons/icon-192x192.png",
@@ -31,7 +32,6 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Network first, falling back to cache
   if (event.request.method !== "GET") return;
 
   event.respondWith(
@@ -45,8 +45,14 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => {
-        return caches.match(event.request);
+      .catch(async () => {
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        if (event.request.mode === "navigate") {
+          return caches.match("/offline");
+        }
       })
   );
 });
