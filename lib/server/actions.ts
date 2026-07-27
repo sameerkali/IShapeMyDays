@@ -6,13 +6,23 @@ import type { Category, Habit, HabitEntry, FoodLog, Profile, CalorieSetting } fr
 export async function fetchDashboardData() {
     try {
         const today = new Date().toISOString().split("T")[0];
-        const profile = await db.getProfile();
-        const habits = await db.getHabits();
-        const categories = await db.getCategories();
-        const todayEntries = await db.getHabitEntries(today);
-        const foodLogs = await db.getFoodLogs(today);
-        const calorieSetting = await db.getCalorieSetting();
-        const allEntries = await db.getHabitEntries();
+        const [
+            profile,
+            habits,
+            categories,
+            todayEntries,
+            foodLogs,
+            calorieSetting,
+            allEntries,
+        ] = await Promise.all([
+            db.getProfile(),
+            db.getHabits(),
+            db.getCategories(),
+            db.getHabitEntries(today),
+            db.getFoodLogs(today),
+            db.getCalorieSetting(),
+            db.getHabitEntries(),
+        ]);
 
         return {
             profile,
@@ -38,9 +48,11 @@ export async function fetchDashboardData() {
 }
 
 export async function fetchHabitsPageData() {
-    const habits = await db.getHabits();
-    const categories = await db.getCategories();
-    const allEntries = await db.getHabitEntries();
+    const [habits, categories, allEntries] = await Promise.all([
+        db.getHabits(),
+        db.getCategories(),
+        db.getHabitEntries(),
+    ]);
 
     const counts: Record<string, number> = {};
     allEntries.forEach((e) => {
@@ -51,18 +63,29 @@ export async function fetchHabitsPageData() {
 }
 
 export async function fetchCategoriesPageData() {
-    const categories = await db.getCategories();
-    const habits = await db.getHabits();
+    const [categories, habits] = await Promise.all([
+        db.getCategories(),
+        db.getHabits(),
+    ]);
     return { categories, habits };
 }
 
 export async function fetchLogPageData(dateStr: string) {
-    const habits = await db.getAllHabitsIncludeDeleted();
-    const categories = await db.getCategories();
-    const entries = await db.getHabitEntries(dateStr);
-    const foodLogs = await db.getFoodLogs(dateStr);
-    const calorieTarget = await db.getCalorieTargetForDate(dateStr);
-    const recentFoods = await db.getFoodLogs();
+    const [
+        habits,
+        categories,
+        entries,
+        foodLogs,
+        calorieTarget,
+        recentFoods,
+    ] = await Promise.all([
+        db.getAllHabitsIncludeDeleted(),
+        db.getCategories(),
+        db.getHabitEntries(dateStr),
+        db.getFoodLogs(dateStr),
+        db.getCalorieTargetForDate(dateStr),
+        db.getFoodLogs(),
+    ]);
 
     return {
         habits,
@@ -75,14 +98,21 @@ export async function fetchLogPageData(dateStr: string) {
 }
 
 export async function fetchAnalyticsPageData() {
-    const habits = await db.getAllHabitsIncludeDeleted();
-    const entries = await db.getHabitEntries();
-    const categories = await db.getCategories();
-    const foodLogs = await db.getFoodLogs();
-    const calorieSetting = await db.getCalorieSetting();
-    
-    // Fetch all historical calorie target settings
-    const targetHistory = await db.getCalorieTargetHistory();
+    const [
+        habits,
+        entries,
+        categories,
+        foodLogs,
+        calorieSetting,
+        targetHistory,
+    ] = await Promise.all([
+        db.getAllHabitsIncludeDeleted(),
+        db.getHabitEntries(),
+        db.getCategories(),
+        db.getFoodLogs(),
+        db.getCalorieSetting(),
+        db.getCalorieTargetHistory(),
+    ]);
 
     return {
         habits,
@@ -95,10 +125,12 @@ export async function fetchAnalyticsPageData() {
 }
 
 export async function fetchProfilePageData() {
-    const profile = await db.getProfile();
-    const calorieSetting = await db.getCalorieSetting();
-    const habits = await db.getHabits();
-    const entries = await db.getHabitEntries();
+    const [profile, calorieSetting, habits, entries] = await Promise.all([
+        db.getProfile(),
+        db.getCalorieSetting(),
+        db.getHabits(),
+        db.getHabitEntries(),
+    ]);
 
     return {
         profile,
