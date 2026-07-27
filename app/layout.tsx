@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { RegisterSW } from "@/components/pwa/RegisterSW";
 import "./globals.css";
 
 const inter = Inter({
@@ -21,6 +22,24 @@ export const metadata: Metadata = {
     "self improvement",
     "daily habits",
   ],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "IShapeMyDays",
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -31,6 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        <RegisterSW />
         {children}
         <Toaster
           position="top-center"
@@ -49,3 +69,4 @@ export default function RootLayout({
     </html>
   );
 }
+
