@@ -5,6 +5,8 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { fetchDashboardData } from "@/lib/server/actions";
 import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
 
+export const dynamic = "force-dynamic";
+
 function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
 }

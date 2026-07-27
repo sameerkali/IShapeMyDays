@@ -4,24 +4,37 @@ import * as db from "./db";
 import type { Category, Habit, HabitEntry, FoodLog, Profile, CalorieSetting } from "@/lib/types/database";
 
 export async function fetchDashboardData() {
-    const today = new Date().toISOString().split("T")[0];
-    const profile = await db.getProfile();
-    const habits = await db.getHabits();
-    const categories = await db.getCategories();
-    const todayEntries = await db.getHabitEntries(today);
-    const foodLogs = await db.getFoodLogs(today);
-    const calorieSetting = await db.getCalorieSetting();
-    const allEntries = await db.getHabitEntries();
+    try {
+        const today = new Date().toISOString().split("T")[0];
+        const profile = await db.getProfile();
+        const habits = await db.getHabits();
+        const categories = await db.getCategories();
+        const todayEntries = await db.getHabitEntries(today);
+        const foodLogs = await db.getFoodLogs(today);
+        const calorieSetting = await db.getCalorieSetting();
+        const allEntries = await db.getHabitEntries();
 
-    return {
-        profile,
-        habits,
-        categories,
-        todayEntries,
-        foodLogs,
-        calorieTarget: calorieSetting.daily_target,
-        allEntries,
-    };
+        return {
+            profile,
+            habits,
+            categories,
+            todayEntries,
+            foodLogs,
+            calorieTarget: calorieSetting?.daily_target ?? 2000,
+            allEntries,
+        };
+    } catch (err) {
+        console.error("Dashboard database fetch error:", err);
+        return {
+            profile: { id: "demo", name: "", email: "", created_at: new Date().toISOString(), image_url: null, phone: null, profession: null, bio: null, goal: null },
+            habits: [],
+            categories: [],
+            todayEntries: [],
+            foodLogs: [],
+            calorieTarget: 2000,
+            allEntries: [],
+        };
+    }
 }
 
 export async function fetchHabitsPageData() {
