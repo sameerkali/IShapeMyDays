@@ -1,28 +1,22 @@
-"use client";
-
-import React from "react";
+import type { CSSProperties } from "react";
 
 type SkeletonProps = {
   width?: string;
   height?: string;
   borderRadius?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 };
 
-export function Skeleton({
-  width = "100%",
-  height = "16px",
-  borderRadius = "var(--radius-sm)",
-  style,
-}: SkeletonProps) {
+export function Skeleton({ width = "100%", height = "14px", borderRadius = "var(--radius-sm)", style }: SkeletonProps) {
   return (
     <div
+      aria-hidden="true"
       style={{
         width,
         height,
         borderRadius,
-        backgroundColor: "var(--bg-tertiary)",
-        animation: "shimmer 1.5s ease-in-out infinite",
+        backgroundColor: "var(--bg-elevated)",
+        animation: "shimmer 1.5s ease infinite",
         ...style,
       }}
     />
@@ -30,22 +24,32 @@ export function Skeleton({
 }
 
 type SkeletonCardProps = {
-  children: React.ReactNode;
-  style?: React.CSSProperties;
+  children?: React.ReactNode;
+  style?: CSSProperties;
 };
 
 export function SkeletonCard({ children, style }: SkeletonCardProps) {
   return (
     <div
+      aria-hidden="true"
       style={{
-        backgroundColor: "var(--bg-secondary)",
-        borderRadius: "var(--radius-lg)",
-        padding: "var(--space-4)",
-        border: "1px solid var(--border-default)",
+        backgroundColor: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        padding: "16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
         ...style,
       }}
     >
-      {children}
+      {children || (
+        <>
+          <Skeleton width="40%" height="12px" />
+          <Skeleton width="70%" height="16px" />
+          <Skeleton width="55%" height="12px" />
+        </>
+      )}
     </div>
   );
 }

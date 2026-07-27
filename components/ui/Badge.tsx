@@ -1,40 +1,60 @@
-type BadgeVariant = "success" | "warning" | "error" | "neutral" | "accent";
+import type { CSSProperties, ReactNode } from "react";
 
-type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
+type BadgeVariant = "default" | "success" | "warning" | "error" | "neutral";
+
+const variantMap: Record<BadgeVariant, CSSProperties> = {
+  default: {
+    backgroundColor: "var(--bg-elevated)",
+    color: "var(--text-primary)",
+    border: "1px solid var(--border-strong)",
+  },
+  success: {
+    backgroundColor: "rgba(74,222,128,0.08)",
+    color: "var(--status-success)",
+    border: "1px solid rgba(74,222,128,0.2)",
+  },
+  warning: {
+    backgroundColor: "rgba(250,204,21,0.08)",
+    color: "var(--status-warning)",
+    border: "1px solid rgba(250,204,21,0.2)",
+  },
+  error: {
+    backgroundColor: "rgba(248,113,113,0.08)",
+    color: "var(--status-error)",
+    border: "1px solid rgba(248,113,113,0.2)",
+  },
+  neutral: {
+    backgroundColor: "transparent",
+    color: "var(--text-muted)",
+    border: "1px solid var(--border)",
+  },
+};
+
+type BadgeProps = {
+  children: ReactNode;
   variant?: BadgeVariant;
-  children: React.ReactNode;
+  style?: CSSProperties;
 };
 
-const variantColors: Record<BadgeVariant, { bg: string; text: string }> = {
-  success: { bg: "rgba(34, 197, 94, 0.15)", text: "var(--status-success)" },
-  warning: { bg: "rgba(245, 158, 11, 0.15)", text: "var(--status-warning)" },
-  error: { bg: "rgba(239, 68, 68, 0.15)", text: "var(--status-error)" },
-  neutral: { bg: "rgba(148, 163, 184, 0.15)", text: "var(--status-neutral)" },
-  accent: { bg: "rgba(16, 185, 129, 0.15)", text: "var(--accent-primary)" },
-};
-
-function Badge({ variant = "neutral", children, style, ...props }: BadgeProps) {
-  const colors = variantColors[variant];
-
+export function Badge({ children, variant = "default", style }: BadgeProps) {
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "2px 10px",
-        fontSize: "12px",
-        fontWeight: 500,
-        borderRadius: "var(--radius-full)",
-        backgroundColor: colors.bg,
-        color: colors.text,
-        lineHeight: 1.6,
+        height: "20px",
+        padding: "0 6px",
+        borderRadius: "var(--radius-xs)",
+        fontSize: "10px",
+        fontWeight: 600,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap",
+        ...variantMap[variant],
         ...style,
       }}
-      {...props}
     >
       {children}
     </span>
   );
 }
-
-export { Badge, type BadgeProps, type BadgeVariant };

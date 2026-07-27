@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { X } from "@phosphor-icons/react";
 
 type BottomSheetProps = {
   isOpen: boolean;
@@ -9,30 +10,22 @@ type BottomSheetProps = {
   children: ReactNode;
 };
 
-function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape key
   useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  // Prevent body scroll when open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
+    if (isOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -41,12 +34,13 @@ function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
       {/* Backdrop */}
       <div
         onClick={onClose}
+        aria-hidden="true"
         style={{
           position: "fixed",
           inset: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          backgroundColor: "rgba(0,0,0,0.75)",
           zIndex: 100,
-          animation: "fadeIn 0.2s ease",
+          animation: "fadeIn 0.15s ease",
         }}
       />
 
@@ -59,85 +53,61 @@ function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
         style={{
           position: "fixed",
           bottom: 0,
-          left: 0,
-          right: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "100%",
+          maxWidth: "640px",
+          maxHeight: "90dvh",
+          overflowY: "auto",
+          backgroundColor: "var(--bg-surface)",
+          borderTop: "1px solid var(--border-strong)",
+          borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
           zIndex: 101,
-          backgroundColor: "var(--bg-secondary)",
-          borderTop: "1px solid var(--border-default)",
-          borderTopLeftRadius: "var(--radius-lg)",
-          borderTopRightRadius: "var(--radius-lg)",
-          maxHeight: "85dvh",
-          display: "flex",
-          flexDirection: "column",
-          animation: "slideUp 0.25s ease",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          animation: "slideUp 0.22s ease",
         }}
       >
-        {/* Handle */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            padding: "var(--space-3) 0 0",
-          }}
-        >
-          <div
-            style={{
-              width: "36px",
-              height: "4px",
-              borderRadius: "2px",
-              backgroundColor: "var(--bg-tertiary)",
-            }}
-          />
-        </div>
-
         {/* Header */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "var(--space-3) var(--space-5) var(--space-4)",
+            padding: "16px 20px",
+            borderBottom: "1px solid var(--border)",
+            position: "sticky",
+            top: 0,
+            backgroundColor: "var(--bg-surface)",
+            zIndex: 1,
           }}
         >
-          <h2 style={{ fontSize: "18px", fontWeight: 600 }}>{title}</h2>
+          <span style={{ fontSize: "15px", fontWeight: 700, letterSpacing: "-0.01em" }}>
+            {title}
+          </span>
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: "none",
-              border: "none",
-              color: "var(--text-muted)",
-              fontSize: "24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "32px",
+              height: "32px",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
               cursor: "pointer",
-              padding: "var(--space-1)",
-              lineHeight: 1,
-              fontFamily: "inherit",
+              color: "var(--text-secondary)",
+              transition: "all var(--t-fast)",
             }}
           >
-            ×
+            <X size={16} weight="bold" />
           </button>
         </div>
 
         {/* Content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "0 var(--space-5) var(--space-6)",
-          }}
-        >
-          {children}
-        </div>
+        <div style={{ padding: "20px" }}>{children}</div>
       </div>
-
-      <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-      `}</style>
     </>
   );
 }
-
-export { BottomSheet };

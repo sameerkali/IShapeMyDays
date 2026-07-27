@@ -10,10 +10,10 @@ import {
 } from "@phosphor-icons/react";
 
 const tabs = [
-  { href: "/dashboard", label: "Dashboard", icon: House },
-  { href: "/log", label: "Log", icon: CheckCircle },
-  { href: "/analytics", label: "Analytics", icon: ChartLineUp },
-  { href: "/profile", label: "Profile", icon: UserCircle },
+  { href: "/dashboard", label: "Home", icon: House },
+  { href: "/log",       label: "Log",  icon: CheckCircle },
+  { href: "/analytics", label: "Stats",icon: ChartLineUp },
+  { href: "/profile",   label: "Me",   icon: UserCircle },
 ] as const;
 
 function BottomNav() {
@@ -28,11 +28,10 @@ function BottomNav() {
         right: 0,
         zIndex: 50,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-around",
-        height: "64px",
-        backgroundColor: "var(--bg-secondary)",
-        borderTop: "1px solid var(--border-default)",
+        alignItems: "stretch",
+        height: "60px",
+        backgroundColor: "var(--bg-base)",
+        borderTop: "1px solid var(--border)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
       aria-label="Main navigation"
@@ -49,24 +48,26 @@ function BottomNav() {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: "var(--space-1)",
+              gap: "3px",
               flex: 1,
-              height: "100%",
               textDecoration: "none",
-              color: isActive ? "var(--accent-primary)" : "var(--text-muted)",
-              transition: "color var(--transition-fast)",
+              color: isActive ? "var(--white)" : "var(--text-muted)",
+              borderRight: "1px solid var(--border)",
+              transition: "color var(--t-fast), background var(--t-fast)",
+              backgroundColor: isActive ? "var(--bg-surface)" : "transparent",
             }}
             aria-current={isActive ? "page" : undefined}
           >
             <Icon
-              size={24}
-              weight={isActive ? "bold" : "regular"}
-              color={isActive ? "var(--accent-primary)" : "var(--text-muted)"}
+              size={20}
+              weight={isActive ? "fill" : "regular"}
             />
             <span
               style={{
-                fontSize: "11px",
-                fontWeight: isActive ? 600 : 400,
+                fontSize: "9px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
                 lineHeight: 1,
               }}
             >

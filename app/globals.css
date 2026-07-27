@@ -1,100 +1,82 @@
 @import "tailwindcss";
 
 /* ================================================
-   IShapeMyDays — Design System Tokens
-   Source: Engineerig/design_system.md
-   Inter font is loaded via next/font/google in layout.tsx
+   IShapeMyDays — Design System
+   Style: Swiss Minimalism / Boxy / Monochrome
+   Palette: Pure Black & White
    ================================================ */
 
 :root {
-  /* === Backgrounds === */
-  --bg-primary: #0F172A;
-  --bg-secondary: #1E293B;
-  --bg-tertiary: #334155;
-  --bg-divider: #475569;
+  /* === Core Palette — Pure Mono === */
+  --black: #000000;
+  --white: #ffffff;
+  --gray-50: #f9f9f9;
+  --gray-100: #f0f0f0;
+  --gray-200: #e0e0e0;
+  --gray-300: #c8c8c8;
+  --gray-400: #a0a0a0;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #3d3d3d;
+  --gray-800: #282828;
+  --gray-900: #141414;
 
-  /* === Primary Accent (Emerald — Growth & Productivity) === */
-  --accent-primary: #10B981;
-  --accent-hover: #059669;
+  /* === Semantic Tokens === */
+  --bg-base: #0a0a0a;
+  --bg-surface: #111111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222222;
+  --bg-active: #2a2a2a;
 
-  /* === Secondary Accent (Indigo — Data & AI Insights) === */
-  --accent-secondary: #6366F1;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a8a8a8;
+  --text-muted: #666666;
+  --text-disabled: #3d3d3d;
+  --text-inverse: #000000;
 
-  /* === Status Colors === */
-  --status-success: #22C55E;
-  --status-warning: #F59E0B;
-  --status-error: #EF4444;
-  --status-neutral: #94A3B8;
+  --border: #252525;
+  --border-strong: #383838;
+  --border-focus: #f5f5f5;
 
-  /* === Text Colors === */
-  --text-primary: #F8FAFC;
-  --text-secondary: #CBD5E1;
-  --text-muted: #94A3B8;
-  --text-disabled: #475569;
+  /* === Status — Muted === */
+  --status-success: #4ade80;
+  --status-warning: #facc15;
+  --status-error: #f87171;
+  --status-info: #93c5fd;
 
-  /* === Border === */
-  --border-default: #334155;
-  --border-hover: #475569;
-  --border-focus: #10B981;
-
-  /* === Border Radius === */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* === Radius — Boxy, minimal === */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
   --radius-full: 9999px;
 
-  /* === Spacing (8pt Grid) === */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 28px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
+  /* === Spacing === */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
 
-  /* === Shadows === */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-elevated: 0 4px 6px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  /* === Typography === */
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
 
-  /* === Transitions === */
-  --transition-fast: 150ms ease;
-  --transition-normal: 250ms ease;
-  --transition-slow: 350ms ease;
+  /* === Transition === */
+  --t-fast: 120ms ease;
+  --t-normal: 200ms ease;
 }
 
-/* === Tailwind v4 Theme Integration === */
-@theme inline {
-  --color-bg-primary: var(--bg-primary);
-  --color-bg-secondary: var(--bg-secondary);
-  --color-bg-tertiary: var(--bg-tertiary);
-  --color-bg-divider: var(--bg-divider);
-
-  --color-accent: var(--accent-primary);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-secondary: var(--accent-secondary);
-
-  --color-success: var(--status-success);
-  --color-warning: var(--status-warning);
-  --color-error: var(--status-error);
-  --color-neutral: var(--status-neutral);
-
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
-  --color-text-disabled: var(--text-disabled);
-
-  --color-border-default: var(--border-default);
-  --color-border-hover: var(--border-hover);
-  --color-border-focus: var(--border-focus);
-
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-}
-
-/* === Base Styles === */
-* {
+/* ================================================
+   BASE RESET
+   ================================================ */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -104,189 +86,201 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--bg-primary);
+  background: var(--bg-base);
   color: var(--text-primary);
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font);
   font-weight: 400;
   line-height: 1.5;
   min-height: 100dvh;
 }
 
-/* === Typography Scale (Mobile-First) === */
+/* ================================================
+   TYPOGRAPHY
+   ================================================ */
 h1 {
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
 }
 
 h2 {
   font-size: 20px;
-  font-weight: 600;
-  line-height: 1.3;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
 }
 
 h3 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
   color: var(--text-primary);
 }
 
-/* === Focus Styles === */
+/* ================================================
+   FOCUS
+   ================================================ */
 :focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--white);
   outline-offset: 2px;
 }
 
-/* === Scrollbar Styling === */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-
+/* ================================================
+   SCROLLBAR
+   ================================================ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-full);
+  background: var(--gray-700);
+  border-radius: 2px;
 }
+::-webkit-scrollbar-thumb:hover { background: var(--gray-500); }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-divider);
-}
-
-/* === Selection === */
+/* ================================================
+   SELECTION
+   ================================================ */
 ::selection {
-  background: var(--accent-primary);
-  color: var(--bg-primary);
+  background: var(--white);
+  color: var(--black);
 }
 
-/* === Reduced Motion === */
-/* === Keyframes === */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* ================================================
+   KEYFRAMES
+   ================================================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes cardAppear {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes shimmer {
-  0% { opacity: 0.4; }
-  50% { opacity: 0.7; }
-  100% { opacity: 0.4; }
+  0%   { opacity: 0.3; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 0.3; }
 }
 
-/* === Micro-Animations (Design System §10 — Calm Control) === */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-/* Button press feedback */
+/* ================================================
+   MICRO-INTERACTIONS
+   ================================================ */
 button:active:not(:disabled),
 [role="button"]:active:not(:disabled) {
   transform: scale(0.97);
-  transition: transform 100ms ease;
+  transition: transform 80ms ease;
 }
 
-/* Card fade-in on mount */
-[data-card],
 .card-animate {
-  animation: cardAppear 0.3s ease both;
+  animation: fadeUp 0.25s ease both;
 }
 
-/* Smooth link/button hover */
-a,
-button {
-  transition: color var(--transition-fast), opacity var(--transition-fast);
-}
-
-/* === Responsive Fixes === */
-
-/* Remove number input spinners for cleaner look */
+/* ================================================
+   FORM ELEMENTS
+   ================================================ */
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-/* Prevent iOS zoom on input focus */
 @media (max-width: 768px) {
-  input,
-  select,
-  textarea {
-    font-size: 16px !important;
-  }
+  input, select, textarea { font-size: 16px !important; }
 }
 
-/* Safe area padding for notched phones */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  body {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+input, select, textarea {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-elevated) !important;
+  border: 1.5px solid var(--border-strong) !important;
+  border-radius: var(--radius-md);
 }
 
-/* === Accessibility === */
+input::placeholder, textarea::placeholder {
+  color: var(--gray-400) !important;
+  opacity: 1;
+}
 
-/* Ensure minimum touch targets */
-button,
-a,
-[role="button"],
-input,
-select,
-textarea {
+select option {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* ================================================
+   TOUCH TARGETS
+   ================================================ */
+button, a, [role="button"], input, select, textarea {
   min-height: 44px;
 }
 
-/* Skip link for keyboard nav */
+/* ================================================
+   SAFE AREA
+   ================================================ */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  body { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ================================================
+   SR-ONLY
+   ================================================ */
 .sr-only {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip: rect(0,0,0,0);
   white-space: nowrap;
   border-width: 0;
 }
 
-/* === Reduced Motion === */
+/* ================================================
+   REDUCED MOTION
+   ================================================ */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ================================================
+   UTILITY CLASSES
+   ================================================ */
+.label-caps {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  color: var(--text-primary);
 }

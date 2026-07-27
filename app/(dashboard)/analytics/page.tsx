@@ -1,97 +1,94 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card } from "@/components/ui/Card";
-import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
-import { Fire, TrendUp, Trophy } from "@phosphor-icons/react";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar,
 } from "recharts";
-import { getCached, setCache } from "@/lib/cache";
 import type { Habit, HabitEntry, Category } from "@/lib/types/database";
-
-type AnalyticsCache = {
-  habits: Habit[];
-  entries: HabitEntry[];
-  categories: Category[];
-};
+import { fetchAnalyticsPageData } from "@/lib/server/actions";
 
 function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
 }
-
 function shortDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+function dayName(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", { weekday: "short" });
+}
 
 type RangeKey = "7" | "30";
+
+// GitHub Green Heatmap Color Helper
+function getGitHubGreen(pct: number, hasTotal: boolean): { fill: string; border: string } {
+  if (!hasTotal || pct === 0) return { fill: "#161b22", border: "#21262d" };
+  if (pct <= 25) return { fill: "#0e4429", border: "#0e4429" };
+  if (pct <= 50) return { fill: "#006d32", border: "#006d32" };
+  if (pct <= 75) return { fill: "#26a641", border: "#26a641" };
+  return { fill: "#39d353", border: "#39d353" };
+}
+
+// ── STAT BOX ──────────────────────────────────────
+function StatBox({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <div
+      style={{
+        padding: "14px",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        backgroundColor: "var(--bg-surface)",
+      }}
+    >
+      <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>
+        {label}
+      </p>
+      <p style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--text-primary)" }}>
+        {value}
+      </p>
+      {sub && <p style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }}>{sub}</p>}
+    </div>
+  );
+}
+
+// ── CUSTOM TOOLTIP ───────────────────────────────
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)", padding: "8px 12px", fontSize: "12px" }}>
+      <p style={{ fontWeight: 700, marginBottom: "2px" }}>{label}</p>
+      <p style={{ color: "#39d353" }}>{payload[0].value}% done</p>
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const [range, setRange] = useState<RangeKey>("7");
   const rangeDays = parseInt(range);
-  const cacheKey = `analytics_${rangeDays}`;
-  const cached = getCached<AnalyticsCache>(cacheKey);
-
-  const [habits, setHabits] = useState<Habit[]>(cached?.habits || []);
-  const [entries, setEntries] = useState<HabitEntry[]>(cached?.entries || []);
-  const [categories, setCategories] = useState<Category[]>(cached?.categories || []);
-  const [isLoading, setIsLoading] = useState(!cached);
-  const router = useRouter();
-  const supabase = createClient();
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [entries, setEntries] = useState<HabitEntry[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hoveredDay, setHoveredDay] = useState<{ date: string; pct: number; completed: number; total: number } | null>(null);
 
   const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
+    try {
+      const data = await fetchAnalyticsPageData();
+      setHabits(data.habits);
+      setEntries(data.entries);
+      setCategories(data.categories);
+    } catch { /* ignore */ }
+    finally { setIsLoading(false); }
+  }, []);
 
-    const startDate = formatDate(new Date(Date.now() - rangeDays * 86400000));
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-    const [habitsRes, entriesRes, categoriesRes] = await Promise.all([
-      // Include deleted habits — they have valid historical entries
-      supabase.from("habits").select("*"),
-      supabase
-        .from("habit_entries")
-        .select("*")
-        .gte("entry_date", startDate)
-        .order("entry_date", { ascending: true }),
-      supabase.from("categories").select("*").order("order"),
-    ]);
-
-    setHabits(habitsRes.data || []);
-    setEntries(entriesRes.data || []);
-    setCategories(categoriesRes.data || []);
-
-    setCache<AnalyticsCache>(cacheKey, {
-      habits: habitsRes.data || [],
-      entries: entriesRes.data || [],
-      categories: categoriesRes.data || [],
-    });
-
-    setIsLoading(false);
-  }, [supabase, router, rangeDays, cacheKey]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // =========================================
-  // DAILY COMPLETION CHART DATA
-  // =========================================
-  // Helper: get habits that were active on a specific date
+  // ── HELPERS ───────────────────────────────────
   const getActiveHabitsForDate = (dateStr: string): Habit[] => {
     const endOfDay = `${dateStr}T23:59:59.999Z`;
     return habits.filter((h) => {
@@ -104,7 +101,8 @@ export default function AnalyticsPage() {
   const todayActiveHabits = getActiveHabitsForDate(formatDate(new Date()));
   const totalActiveHabitsToday = todayActiveHabits.length;
 
-  const dailyData: { date: string; label: string; pct: number; completed: number; total: number }[] = [];
+  // ── DAILY DATA ────────────────────────────────
+  const dailyData: { date: string; label: string; dayLabel: string; pct: number; completed: number; total: number }[] = [];
   for (let i = rangeDays - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     const key = formatDate(d);
@@ -114,86 +112,113 @@ export default function AnalyticsPage() {
     const completedCount = dayEntries.length;
     const total = dayActiveHabits.length;
     const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
-    dailyData.push({
-      date: key,
-      label: shortDate(key),
-      pct,
-      completed: completedCount,
-      total,
-    });
+    dailyData.push({ date: key, label: shortDate(key), dayLabel: dayName(key), pct, completed: completedCount, total });
   }
 
-  // =========================================
-  // CATEGORY PERFORMANCE DATA
-  // =========================================
-  const categoryData = categories
-    .map((cat) => {
-      const catHabits = habits.filter((h) => h.category_id === cat.id);
-      const catHabitIds = new Set(catHabits.map((h) => h.id));
-      const catEntries = entries.filter((e) => catHabitIds.has(e.habit_id) && e.completed);
+  // ── 30-DAY GITHUB HEATMAP DATA ─────────────────
+  const githubHeatmapDays: { date: string; label: string; dayLabel: string; pct: number; completed: number; total: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const key = formatDate(d);
+    const dayActiveHabits = getActiveHabitsForDate(key);
+    const dayActiveIds = new Set(dayActiveHabits.map((h) => h.id));
+    const dayEntries = entries.filter((e) => e.entry_date === key && e.completed && dayActiveIds.has(e.habit_id));
+    const completedCount = dayEntries.length;
+    const total = dayActiveHabits.length;
+    const pct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+    githubHeatmapDays.push({ date: key, label: shortDate(key), dayLabel: dayName(key), pct, completed: completedCount, total });
+  }
 
-      // Calculate date-aware total possible: sum of active category habits per day
-      let totalPossible = 0;
-      for (let i = rangeDays - 1; i >= 0; i--) {
-        const d = new Date(Date.now() - i * 86400000);
-        const key = formatDate(d);
-        const dayActiveForCat = getActiveHabitsForDate(key).filter((h) => h.category_id === cat.id);
-        totalPossible += dayActiveForCat.length;
-      }
+  // ── PREVIOUS PERIOD DATA (for Momentum) ───────
+  let prevTotalPossible = 0;
+  let prevTotalCompleted = 0;
+  for (let i = (rangeDays * 2) - 1; i >= rangeDays; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    const key = formatDate(d);
+    const dayActiveHabits = getActiveHabitsForDate(key);
+    const dayActiveIds = new Set(dayActiveHabits.map((h) => h.id));
+    const dayEntries = entries.filter((e) => e.entry_date === key && e.completed && dayActiveIds.has(e.habit_id));
+    prevTotalPossible += dayActiveHabits.length;
+    prevTotalCompleted += dayEntries.length;
+  }
+  const prevAvgPct = prevTotalPossible > 0 ? Math.round((prevTotalCompleted / prevTotalPossible) * 100) : 0;
 
-      const pct = totalPossible > 0 ? Math.round((catEntries.length / totalPossible) * 100) : 0;
-      return {
-        name: cat.name,
-        color: cat.color,
-        pct,
-        completed: catEntries.length,
-        total: totalPossible,
-      };
-    })
-    .filter((d) => d.total > 0);
+  // ── CATEGORY PERFORMANCE ───────────────────────
+  const categoryData = categories.map((cat) => {
+    const catHabits = habits.filter((h) => h.category_id === cat.id);
+    const catHabitIds = new Set(catHabits.map((h) => h.id));
+    const catEntries = entries.filter((e) => catHabitIds.has(e.habit_id) && e.completed);
+    let totalPossible = 0;
+    for (let i = rangeDays - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = formatDate(d);
+      const dayActiveForCat = getActiveHabitsForDate(key).filter((h) => h.category_id === cat.id);
+      totalPossible += dayActiveForCat.length;
+    }
+    const pct = totalPossible > 0 ? Math.round((catEntries.length / totalPossible) * 100) : 0;
+    return { name: cat.name, color: cat.color, pct, completed: catEntries.length, total: totalPossible };
+  }).filter((d) => d.total > 0);
 
-  // =========================================
-  // STREAK CALCULATION
-  // =========================================
+  // ── STREAK ─────────────────────────────────────
   let currentStreak = 0;
   if (totalActiveHabitsToday > 0) {
     const d = new Date();
     const todayKey = formatDate(d);
     const todayHabits = getActiveHabitsForDate(todayKey);
-    const todayEntries = entries.filter((e) => e.entry_date === todayKey && e.completed);
-    if (todayEntries.length < todayHabits.length) d.setDate(d.getDate() - 1);
+    const todayCompletedEntries = entries.filter((e) => e.entry_date === todayKey && e.completed);
+    if (todayCompletedEntries.length < todayHabits.length) d.setDate(d.getDate() - 1);
     while (true) {
       const key = formatDate(d);
       const dayHabits = getActiveHabitsForDate(key);
       if (dayHabits.length === 0) break;
       const dayCompleted = entries.filter((e) => e.entry_date === key && e.completed).length;
-      if (dayCompleted >= dayHabits.length) {
-        currentStreak++;
-        d.setDate(d.getDate() - 1);
-      } else {
-        break;
-      }
+      if (dayCompleted >= dayHabits.length) { currentStreak++; d.setDate(d.getDate() - 1); }
+      else break;
     }
   }
 
-  // Best streak in range
-  let bestStreak = 0;
-  let tempStreak = 0;
+  // ── BEST STREAK ────────────────────────────────
+  let bestStreak = 0, tempStreak = 0;
   for (const day of dailyData) {
-    if (day.completed >= day.total && day.total > 0) {
-      tempStreak++;
-      bestStreak = Math.max(bestStreak, tempStreak);
-    } else {
-      tempStreak = 0;
-    }
+    if (day.completed >= day.total && day.total > 0) { tempStreak++; bestStreak = Math.max(bestStreak, tempStreak); }
+    else tempStreak = 0;
   }
 
-  // Average completion
+  // ── AVG COMPLETION ─────────────────────────────
   const avgCompletion = dailyData.length > 0
     ? Math.round(dailyData.reduce((sum, d) => sum + d.pct, 0) / dailyData.length)
     : 0;
 
-  // Most consistent habit
+  // ── MOMENTUM DELTA ─────────────────────────────
+  const momentumDelta = avgCompletion - prevAvgPct;
+
+  // ── TOTAL COMPLETIONS ──────────────────────────
+  const totalCompletions = entries.filter((e) => e.completed).length;
+
+  // ── TOTAL DURATION TRACKED ─────────────────────
+  const rangeDateKeys = new Set(dailyData.map((d) => d.date));
+  const totalDurationMinutes = entries
+    .filter((e) => rangeDateKeys.has(e.entry_date) && e.value > 0)
+    .reduce((sum, e) => sum + e.value, 0);
+  const formattedDuration = totalDurationMinutes >= 60
+    ? `${(totalDurationMinutes / 60).toFixed(1)} hrs`
+    : `${totalDurationMinutes} mins`;
+
+  // ── PERFECT DAYS ───────────────────────────────
+  const perfectDays = dailyData.filter((d) => d.pct === 100 && d.total > 0).length;
+
+  // ── CONSISTENCY INDEX SCORE ─────────────────────
+  const perfectRatio = rangeDays > 0 ? (perfectDays / rangeDays) * 100 : 0;
+  const streakBonus = Math.min((currentStreak / 10) * 100, 100);
+  const consistencyIndex = Math.min(100, Math.round((avgCompletion * 0.6) + (perfectRatio * 0.25) + (streakBonus * 0.15)));
+
+  // ── WORST DAY ──────────────────────────────────
+  const daysWithData = dailyData.filter((d) => d.total > 0);
+  const worstDay = daysWithData.length > 0
+    ? daysWithData.reduce((min, d) => d.pct < min.pct ? d : min, daysWithData[0])
+    : null;
+
+  // ── BEST HABIT ─────────────────────────────────
   const habitCompletionMap = new Map<string, number>();
   entries.filter((e) => e.completed).forEach((e) => {
     habitCompletionMap.set(e.habit_id, (habitCompletionMap.get(e.habit_id) || 0) + 1);
@@ -201,10 +226,8 @@ export default function AnalyticsPage() {
   let bestHabitName = "—";
   let bestHabitPct = 0;
   habitCompletionMap.forEach((count, habitId) => {
-    // Calculate actual active days for this habit in the range
     const habit = habits.find((h) => h.id === habitId);
     if (!habit) return;
-
     let activeDays = 0;
     for (let i = rangeDays - 1; i >= 0; i--) {
       const d = new Date(Date.now() - i * 86400000);
@@ -213,312 +236,352 @@ export default function AnalyticsPage() {
       const wasActive = habit.created_at <= endOfDay && (!habit.deleted_at || habit.deleted_at > endOfDay);
       if (wasActive) activeDays++;
     }
-
     const pct = activeDays > 0 ? Math.round((count / activeDays) * 100) : 0;
-    if (pct > bestHabitPct) {
-      bestHabitPct = pct;
-      bestHabitName = habit.name || "—";
-    }
+    if (pct > bestHabitPct) { bestHabitPct = pct; bestHabitName = habit.name || "—"; }
   });
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
-    if (!active || !payload?.length) return null;
+  // ── PER-HABIT RATES & PERFORMANCE TIERS ────────
+  const habitRates = habits
+    .filter((h) => !h.deleted_at)
+    .map((h) => {
+      let activeDays = 0;
+      for (let i = rangeDays - 1; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000);
+        const key = formatDate(d);
+        const endOfDay = `${key}T23:59:59.999Z`;
+        const wasActive = h.created_at <= endOfDay && (!h.deleted_at || h.deleted_at > endOfDay);
+        if (wasActive) activeDays++;
+      }
+      const completed = habitCompletionMap.get(h.id) || 0;
+      const pct = activeDays > 0 ? Math.round((completed / activeDays) * 100) : 0;
+      return { id: h.id, name: h.name, pct, completed, activeDays };
+    })
+    .sort((a, b) => b.pct - a.pct);
+
+  const highPerformers = habitRates.filter((h) => h.pct >= 80).length;
+  const moderatePerformers = habitRates.filter((h) => h.pct >= 50 && h.pct < 80).length;
+  const focusPerformers = habitRates.filter((h) => h.pct < 50).length;
+
+  // ── BEST DAY OF WEEK ───────────────────────────
+  const dayOfWeekMap: Record<string, { total: number; completed: number }> = {};
+  dailyData.forEach((d) => {
+    const dow = d.dayLabel;
+    if (!dayOfWeekMap[dow]) dayOfWeekMap[dow] = { total: 0, completed: 0 };
+    dayOfWeekMap[dow].total += d.total;
+    dayOfWeekMap[dow].completed += d.completed;
+  });
+  let bestDow = "—";
+  let bestDowPct = 0;
+  Object.entries(dayOfWeekMap).forEach(([dow, { total, completed }]) => {
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    if (pct > bestDowPct) { bestDowPct = pct; bestDow = dow; }
+  });
+
+  if (isLoading) {
     return (
-      <div
-        style={{
-          backgroundColor: "var(--bg-secondary)",
-          border: "1px solid var(--border-default)",
-          borderRadius: "var(--radius-sm)",
-          padding: "var(--space-2) var(--space-3)",
-          fontSize: "12px",
-        }}
-      >
-        <p style={{ fontWeight: 600, marginBottom: "2px" }}>{label}</p>
-        <p style={{ color: "var(--accent-primary)" }}>{payload[0].value}%</p>
-      </div>
+      <>
+        <TopBar title="Analytics" />
+        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+        </div>
+      </>
     );
-  };
+  }
+
+  if (totalActiveHabitsToday === 0) {
+    return (
+      <>
+        <TopBar title="Analytics" />
+        <div style={{ padding: "16px", textAlign: "center", paddingTop: "60px" }}>
+          <p style={{ fontSize: "15px", fontWeight: 600, marginBottom: "8px" }}>No data yet</p>
+          <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>Create habits and start logging to see analytics.</p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <TopBar title="Analytics" />
 
-      <div style={{ padding: "var(--space-4)" }}>
-        {/* Range Selector */}
-        <div
-          style={{
-            display: "flex",
-            gap: "var(--space-2)",
-            marginBottom: "var(--space-5)",
-          }}
-        >
-          {([
-            { key: "7" as RangeKey, label: "7 Days" },
-            { key: "30" as RangeKey, label: "30 Days" },
-          ]).map((opt) => (
+      <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+        {/* ── RANGE TOGGLE ── */}
+        <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+          {(["7", "30"] as RangeKey[]).map((key) => (
             <button
-              key={opt.key}
-              onClick={() => setRange(opt.key)}
+              key={key}
+              onClick={() => setRange(key)}
               style={{
                 flex: 1,
                 height: "40px",
-                borderRadius: "var(--radius-sm)",
-                border: `2px solid ${range === opt.key ? "var(--accent-primary)" : "var(--border-default)"}`,
-                backgroundColor: range === opt.key ? "var(--accent-primary)" + "15" : "transparent",
-                color: range === opt.key ? "var(--accent-primary)" : "var(--text-muted)",
-                fontSize: "14px",
-                fontWeight: 600,
-                fontFamily: "inherit",
+                background: range === key ? "var(--white)" : "transparent",
+                color: range === key ? "var(--black)" : "var(--text-muted)",
+                border: "none",
+                fontSize: "13px",
+                fontWeight: 700,
+                fontFamily: "var(--font)",
                 cursor: "pointer",
-                transition: "all var(--transition-fast)",
+                letterSpacing: "0.02em",
+                transition: "all var(--t-fast)",
+                borderRight: key === "7" ? "1px solid var(--border)" : "none",
               }}
             >
-              {opt.label}
+              {key} Days
             </button>
           ))}
         </div>
 
-        {isLoading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            {/* Chart skeleton */}
-            <SkeletonCard>
-              <Skeleton width="120px" height="14px" style={{ marginBottom: "var(--space-3)" }} />
-              <Skeleton width="100%" height="180px" borderRadius="var(--radius-md)" />
-            </SkeletonCard>
-            {/* Summary cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-3)" }}>
-              {[1, 2, 3].map((i) => (
-                <SkeletonCard key={i}>
-                  <Skeleton width="20px" height="20px" borderRadius="50%" style={{ margin: "0 auto" }} />
-                  <Skeleton width="40px" height="22px" style={{ margin: "var(--space-2) auto 0" }} />
-                  <Skeleton width="50px" height="10px" style={{ margin: "4px auto 0" }} />
-                </SkeletonCard>
+        {/* ── HERO CONSISTENCY SCORE & MOMENTUM CARD ── */}
+        <Card padding="lg">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <div>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "4px" }}>
+                Consistency Score
+              </p>
+              <div style={{ fontSize: "36px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
+                {consistencyIndex}<span style={{ fontSize: "20px", color: "var(--text-muted)", fontWeight: 400 }}>/100</span>
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "4px" }}>
+                Momentum
+              </p>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: momentumDelta >= 0 ? "#39d353" : "var(--status-error)" }}>
+                {momentumDelta >= 0 ? `+${momentumDelta}%` : `${momentumDelta}%`}
+              </div>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>vs prev {rangeDays}d</span>
+            </div>
+          </div>
+          <div style={{ height: "4px", backgroundColor: "var(--border)", borderRadius: "2px", overflow: "hidden" }}>
+            <div style={{ width: `${consistencyIndex}%`, height: "100%", backgroundColor: "#39d353", transition: "width 0.6s ease" }} />
+          </div>
+        </Card>
+
+        {/* ── GITHUB-STYLE CONTRIBUTION HEAT GRAPH CARD (Green shades) ── */}
+        <Card padding="md">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <div>
+              <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)" }}>
+                Activity Contribution Graph
+              </p>
+              <p style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                30-Day Activity Heatmap
+              </p>
+            </div>
+            {hoveredDay && (
+              <div style={{ fontSize: "11px", fontWeight: 600, color: "#39d353" }}>
+                {hoveredDay.label}: {hoveredDay.pct}% ({hoveredDay.completed}/{hoveredDay.total})
+              </div>
+            )}
+          </div>
+
+          {/* GitHub Grid Layout (7 rows for days Sun-Sat or 5x6 grid) */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: "5px" }}>
+            {githubHeatmapDays.map((d) => {
+              const colors = getGitHubGreen(d.pct, d.total > 0);
+              return (
+                <div
+                  key={d.date}
+                  onMouseEnter={() => setHoveredDay(d)}
+                  onMouseLeave={() => setHoveredDay(null)}
+                  title={`${d.label}: ${d.pct}% (${d.completed}/${d.total} completed)`}
+                  style={{
+                    aspectRatio: "1",
+                    borderRadius: "3px",
+                    backgroundColor: colors.fill,
+                    border: `1px solid ${colors.border}`,
+                    cursor: "pointer",
+                    transition: "transform 0.1s ease",
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          {/* GitHub Heatmap Legend */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "5px", marginTop: "14px" }}>
+            <span style={{ fontSize: "9px", color: "var(--text-muted)", marginRight: "4px" }}>Less</span>
+            {[
+              { fill: "#161b22", border: "#21262d" },
+              { fill: "#0e4429", border: "#0e4429" },
+              { fill: "#006d32", border: "#006d32" },
+              { fill: "#26a641", border: "#26a641" },
+              { fill: "#39d353", border: "#39d353" },
+            ].map((c, i) => (
+              <div
+                key={i}
+                style={{
+                  width: "11px",
+                  height: "11px",
+                  borderRadius: "2px",
+                  backgroundColor: c.fill,
+                  border: `1px solid ${c.border}`,
+                }}
+              />
+            ))}
+            <span style={{ fontSize: "9px", color: "var(--text-muted)", marginLeft: "4px" }}>More</span>
+          </div>
+        </Card>
+
+        {/* ── HABIT TIER DISTRIBUTION BAR ── */}
+        {habitRates.length > 0 && (
+          <Card padding="md">
+            <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "10px" }}>
+              Habit Performance Tiers
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ flex: 1, padding: "10px", backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                <span style={{ fontSize: "9px", fontWeight: 700, color: "#39d353", textTransform: "uppercase" }}>Strong (≥80%)</span>
+                <p style={{ fontSize: "20px", fontWeight: 800, marginTop: "2px" }}>{highPerformers}</p>
+              </div>
+              <div style={{ flex: 1, padding: "10px", backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                <span style={{ fontSize: "9px", fontWeight: 700, color: "var(--status-warning)", textTransform: "uppercase" }}>Steady (50-79%)</span>
+                <p style={{ fontSize: "20px", fontWeight: 800, marginTop: "2px" }}>{moderatePerformers}</p>
+              </div>
+              <div style={{ flex: 1, padding: "10px", backgroundColor: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                <span style={{ fontSize: "9px", fontWeight: 700, color: "var(--status-error)", textTransform: "uppercase" }}>Focus (&lt;50%)</span>
+                <p style={{ fontSize: "20px", fontWeight: 800, marginTop: "2px" }}>{focusPerformers}</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* ── COMPLETION LINE CHART ── */}
+        <Card padding="md">
+          <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "12px" }}>
+            Daily Completion Trend
+          </p>
+          <div style={{ width: "100%", height: 180 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dailyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 9, fill: "var(--text-muted)", fontWeight: 600 }}
+                  axisLine={{ stroke: "var(--border)" }}
+                  tickLine={false}
+                  interval={range === "30" ? 4 : 0}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fontSize: 9, fill: "var(--text-muted)", fontWeight: 600 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => `${v}%`}
+                  width={32}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="pct"
+                  stroke="#39d353"
+                  strokeWidth={1.5}
+                  dot={{ r: range === "7" ? 3 : 0, fill: "#39d353", strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: "#39d353", strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        {/* ── CATEGORY BAR CHART ── */}
+        {categoryData.length > 0 && (
+          <Card padding="md">
+            <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "12px" }}>
+              Category Breakdown
+            </p>
+            <div style={{ width: "100%", height: Math.max(120, categoryData.length * 44) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryData} layout="vertical" barSize={14}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 9, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--text-secondary)", fontWeight: 500 }} axisLine={false} tickLine={false} width={90} />
+                  <Bar dataKey="pct" radius={[0, 2, 2, 0]} fill="#39d353" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
+
+        {/* ── PER-HABIT RATES TABLE ── */}
+        {habitRates.length > 0 && (
+          <div>
+            <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "10px" }}>
+              Habit Success Leaderboard
+            </p>
+            <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+              {habitRates.map((h, idx) => (
+                <div
+                  key={h.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "11px 14px",
+                    backgroundColor: "var(--bg-surface)",
+                    borderBottom: idx < habitRates.length - 1 ? "1px solid var(--border)" : "none",
+                  }}
+                >
+                  <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-muted)", width: "20px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    #{idx + 1}
+                  </span>
+                  <span style={{ flex: 1, fontSize: "13px", fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {h.name}
+                  </span>
+                  <div style={{ width: "60px", height: "3px", backgroundColor: "var(--border)", borderRadius: "2px", overflow: "hidden", flexShrink: 0 }}>
+                    <div style={{ width: `${h.pct}%`, height: "100%", backgroundColor: h.pct >= 80 ? "#39d353" : h.pct >= 50 ? "var(--status-warning)" : "var(--status-error)" }} />
+                  </div>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: h.pct >= 80 ? "var(--text-primary)" : "var(--text-muted)", width: "36px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    {h.pct}%
+                  </span>
+                </div>
               ))}
             </div>
-            {/* Second chart skeleton */}
-            <SkeletonCard>
-              <Skeleton width="140px" height="14px" style={{ marginBottom: "var(--space-3)" }} />
-              <Skeleton width="100%" height="160px" borderRadius="var(--radius-md)" />
-            </SkeletonCard>
           </div>
-        ) : totalActiveHabitsToday === 0 ? (
-          <div style={{ textAlign: "center", padding: "var(--space-10)" }}>
-            <p style={{ fontSize: "16px", fontWeight: 500, marginBottom: "var(--space-2)" }}>
-              No habits to analyze yet
-            </p>
-            <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-              Create habits and start logging to see insights.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* ========== STATS ROW ========== */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: "var(--space-2)",
-                marginBottom: "var(--space-5)",
-              }}
-            >
-              <Card padding="sm">
-                <div style={{ textAlign: "center", padding: "var(--space-1) 0" }}>
-                  <TrendUp size={18} color="var(--accent-primary)" style={{ marginBottom: "4px" }} />
-                  <div style={{ fontSize: "20px", fontWeight: 700 }}>{avgCompletion}%</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Avg</div>
-                </div>
-              </Card>
-              <Card padding="sm">
-                <div style={{ textAlign: "center", padding: "var(--space-1) 0" }}>
-                  <Fire size={18} color="var(--status-warning)" style={{ marginBottom: "4px" }} />
-                  <div style={{ fontSize: "20px", fontWeight: 700 }}>{currentStreak}</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Streak</div>
-                </div>
-              </Card>
-              <Card padding="sm">
-                <div style={{ textAlign: "center", padding: "var(--space-1) 0" }}>
-                  <Trophy size={18} color="var(--status-warning)" style={{ marginBottom: "4px" }} />
-                  <div style={{ fontSize: "20px", fontWeight: 700 }}>{bestStreak}</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Best</div>
-                </div>
-              </Card>
-            </div>
-
-            {/* ========== COMPLETION LINE CHART ========== */}
-            <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "var(--space-4)" }}>
-                Daily Completion %
-              </h3>
-              <div style={{ width: "100%", height: 200 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={dailyData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="var(--border-default)"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10, fill: "#94A3B8" }}
-                      axisLine={{ stroke: "var(--border-default)" }}
-                      tickLine={false}
-                      interval={range === "30" ? 4 : 0}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      tick={{ fontSize: 10, fill: "#94A3B8" }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v: number) => `${v}%`}
-                      width={40}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line
-                      type="monotone"
-                      dataKey="pct"
-                      stroke="#10B981"
-                      strokeWidth={2}
-                      dot={{ r: range === "7" ? 4 : 0, fill: "#10B981" }}
-                      activeDot={{ r: 6, fill: "#10B981" }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            {/* ========== CATEGORY BAR CHART ========== */}
-            {categoryData.length > 0 && (
-              <Card padding="md" style={{ marginBottom: "var(--space-4)" }}>
-                <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "var(--space-4)" }}>
-                  Category Performance
-                </h3>
-                <div style={{ width: "100%", height: 180 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={categoryData} layout="vertical">
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--border-default)"
-                        horizontal={false}
-                      />
-                      <XAxis
-                        type="number"
-                        domain={[0, 100]}
-                        tick={{ fontSize: 10, fill: "#94A3B8" }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v: number) => `${v}%`}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        tick={{ fontSize: 12, fill: "#CBD5E1" }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={80}
-                      />
-                      <Bar
-                        dataKey="pct"
-                        radius={[0, 4, 4, 0]}
-                        fill="#10B981"
-                        barSize={20}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-            )}
-
-            {/* ========== WEEKLY SUMMARY CARD (5.3) ========== */}
-            <Card padding="lg">
-              <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "var(--space-4)" }}>
-                {range === "7" ? "Weekly" : "Monthly"} Summary
-              </h3>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-                {/* Completion */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                    Avg Completion
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: 700,
-                      color:
-                        avgCompletion >= 80
-                          ? "var(--accent-primary)"
-                          : avgCompletion >= 50
-                          ? "var(--status-warning)"
-                          : "var(--status-error)",
-                    }}
-                  >
-                    {avgCompletion}%
-                  </span>
-                </div>
-
-                <div style={{ height: "1px", backgroundColor: "var(--border-default)" }} />
-
-                {/* Best streak */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                    Best Streak
-                  </span>
-                  <span style={{ fontSize: "15px", fontWeight: 600 }}>
-                    🔥 {bestStreak} {bestStreak === 1 ? "day" : "days"}
-                  </span>
-                </div>
-
-                <div style={{ height: "1px", backgroundColor: "var(--border-default)" }} />
-
-                {/* Most consistent */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                    Most Consistent
-                  </span>
-                  <span style={{ fontSize: "15px", fontWeight: 600 }}>
-                    🏆 {bestHabitName}
-                  </span>
-                </div>
-
-                <div style={{ height: "1px", backgroundColor: "var(--border-default)" }} />
-
-                {/* Category scores */}
-                <div>
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)", display: "block", marginBottom: "var(--space-2)" }}>
-                    Category Scores
-                  </span>
-                  {categoryData.map((cat) => (
-                    <div
-                      key={cat.name}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "var(--space-1) 0",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                        <div
-                          style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            backgroundColor: cat.color,
-                          }}
-                        />
-                        <span style={{ fontSize: "13px" }}>{cat.name}</span>
-                      </div>
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: cat.color }}>
-                        {cat.pct}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          </>
         )}
+
+        {/* ── SPOTLIGHTS ── */}
+        <div style={{ display: "grid", gridTemplateColumns: worstDay && worstDay.total > 0 && worstDay.pct < 100 ? "1fr 1fr" : "1fr", gap: "10px" }}>
+          {bestHabitName !== "—" && (
+            <Card padding="md">
+              <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>
+                Top Performing Habit
+              </p>
+              <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bestHabitName}</div>
+              <span style={{ fontSize: "20px", fontWeight: 800, color: "#39d353" }}>{bestHabitPct}% completion</span>
+            </Card>
+          )}
+
+          {worstDay && worstDay.total > 0 && worstDay.pct < 100 && (
+            <Card padding="md">
+              <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>
+                Weakest Day Spotlight
+              </p>
+              <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "2px" }}>{worstDay.label}</div>
+              <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--status-error)" }}>{worstDay.pct}% completion</span>
+            </Card>
+          )}
+        </div>
+
+        {/* ── ALL 9 STAT CARDS MOVED TO BOTTOM ── */}
+        <div>
+          <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "10px" }}>
+            Summary Metrics
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+            <StatBox label="Avg Rate" value={`${avgCompletion}%`} sub={`last ${rangeDays}d`} />
+            <StatBox label="Streak" value={currentStreak} sub={currentStreak === 1 ? "day" : "days"} />
+            <StatBox label="Best Streak" value={bestStreak} sub={`in ${rangeDays}d`} />
+            <StatBox label="Perfect Days" value={perfectDays} sub={`${Math.round((perfectDays / rangeDays) * 100)}% of days`} />
+            <StatBox label="Time Tracked" value={formattedDuration} sub={`in ${rangeDays}d`} />
+            <StatBox label="Total Done" value={totalCompletions} sub="all time" />
+            <StatBox label="Best Day" value={bestDow} sub={bestDow !== "—" ? `${bestDowPct}% avg` : "no data"} />
+            <StatBox label="Active Habits" value={totalActiveHabitsToday} sub="currently active" />
+            <StatBox label="Categories" value={categories.length} sub="configured" />
+          </div>
+        </div>
+
       </div>
     </>
   );

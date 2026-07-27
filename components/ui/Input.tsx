@@ -1,81 +1,63 @@
-"use client";
-
-import { type InputHTMLAttributes, forwardRef, useState } from "react";
+import type { CSSProperties, InputHTMLAttributes } from "react";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
   error?: string;
-  helperText?: string;
+  style?: CSSProperties;
 };
 
-const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, id, style, ...props }, ref) => {
-    const [isFocused, setIsFocused] = useState(false);
-    const inputId = id || label?.toLowerCase().replace(/\s/g, "-");
+export function Input({ label, error, style, onFocus, onBlur, id, ...rest }: InputProps) {
+  const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
 
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
-        {label && (
-          <label
-            htmlFor={inputId}
-            style={{
-              fontSize: "12px",
-              fontWeight: 500,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              color: error ? "var(--status-error)" : "var(--text-muted)",
-            }}
-          >
-            {label}
-          </label>
-        )}
-        <input
-          ref={ref}
-          id={inputId}
-          onFocus={(e) => {
-            setIsFocused(true);
-            props.onFocus?.(e);
-          }}
-          onBlur={(e) => {
-            setIsFocused(false);
-            props.onBlur?.(e);
-          }}
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {label && (
+        <label
+          htmlFor={inputId}
           style={{
-            height: "44px",
-            padding: "0 var(--space-4)",
-            backgroundColor: "var(--bg-primary)",
-            border: `1px solid ${
-              error
-                ? "var(--status-error)"
-                : isFocused
-                ? "var(--border-focus)"
-                : "var(--border-default)"
-            }`,
-            borderRadius: "var(--radius-md)",
-            color: "var(--text-primary)",
-            fontSize: "14px",
-            fontFamily: "inherit",
-            outline: "none",
-            transition: "border-color var(--transition-fast)",
-            width: "100%",
-            ...style,
+            fontSize: "11px",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            color: error ? "var(--status-error)" : "var(--text-secondary)",
           }}
-          {...props}
-        />
-        {(error || helperText) && (
-          <span
-            style={{
-              fontSize: "12px",
-              color: error ? "var(--status-error)" : "var(--text-muted)",
-            }}
-          >
-            {error || helperText}
-          </span>
-        )}
-      </div>
-    );
-  }
-);
-
-Input.displayName = "Input";
-export { Input, type InputProps };
+        >
+          {label}
+        </label>
+      )}
+      <input
+        id={inputId}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = "var(--white)";
+          e.currentTarget.style.backgroundColor = "#262626";
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = error ? "var(--status-error)" : "var(--border-strong)";
+          e.currentTarget.style.backgroundColor = "var(--bg-elevated)";
+          onBlur?.(e);
+        }}
+        style={{
+          height: "46px",
+          padding: "0 14px",
+          backgroundColor: "var(--bg-elevated)",
+          border: `1.5px solid ${error ? "var(--status-error)" : "var(--border-strong)"}`,
+          borderRadius: "var(--radius-md)",
+          color: "var(--text-primary)",
+          fontSize: "14px",
+          fontFamily: "var(--font)",
+          outline: "none",
+          width: "100%",
+          transition: "border-color var(--t-fast), background var(--t-fast)",
+          ...style,
+        }}
+        {...rest}
+      />
+      {error && (
+        <span style={{ fontSize: "11px", color: "var(--status-error)", marginTop: "2px", fontWeight: 500 }}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}

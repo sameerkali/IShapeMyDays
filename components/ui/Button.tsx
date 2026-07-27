@@ -1,113 +1,119 @@
-"use client";
+import type { CSSProperties, ReactNode, ButtonHTMLAttributes } from "react";
 
-import { type ButtonHTMLAttributes, forwardRef, useState } from "react";
-
-type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: ButtonVariant;
+  variant?: Variant;
   fullWidth?: boolean;
   isLoading?: boolean;
+  children: ReactNode;
+  style?: CSSProperties;
 };
 
-const variantStyles: Record<ButtonVariant, React.CSSProperties> = {
+const variantStyles: Record<Variant, CSSProperties> = {
   primary: {
-    backgroundColor: "var(--accent-primary)",
-    color: "#ffffff",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "transparent",
+    backgroundColor: "var(--white)",
+    color: "var(--black)",
+    border: "1px solid var(--white)",
   },
   secondary: {
     backgroundColor: "transparent",
     color: "var(--text-primary)",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: "var(--border-default)",
-  },
-  danger: {
-    backgroundColor: "var(--status-error)",
-    color: "#ffffff",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "transparent",
+    border: "1px solid var(--border-strong)",
   },
   ghost: {
     backgroundColor: "transparent",
-    color: "var(--text-muted)",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "transparent",
+    color: "var(--text-secondary)",
+    border: "1px solid transparent",
+  },
+  danger: {
+    backgroundColor: "transparent",
+    color: "var(--status-error)",
+    border: "1px solid var(--status-error)",
   },
 };
 
-const variantHoverStyles: Record<ButtonVariant, React.CSSProperties> = {
-  primary: { backgroundColor: "var(--accent-hover)" },
-  secondary: { borderColor: "var(--border-hover)", backgroundColor: "var(--bg-tertiary)" },
-  danger: { backgroundColor: "#DC2626" },
-  ghost: { backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)" },
+const hoverStyles: Record<Variant, CSSProperties> = {
+  primary: { backgroundColor: "var(--gray-200)", borderColor: "var(--gray-200)" },
+  secondary: { backgroundColor: "var(--bg-elevated)", borderColor: "var(--white)" },
+  ghost: { backgroundColor: "var(--bg-elevated)", color: "var(--text-primary)" },
+  danger: { backgroundColor: "rgba(248,113,113,0.08)" },
 };
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "primary", fullWidth = false, isLoading = false, children, disabled, style, ...props }, ref) => {
-    const [isHovered, setIsHovered] = useState(false);
-    const [isPressed, setIsPressed] = useState(false);
+export function Button({
+  variant = "primary",
+  fullWidth = false,
+  isLoading = false,
+  children,
+  disabled,
+  style,
+  onMouseEnter,
+  onMouseLeave,
+  ...rest
+}: ButtonProps) {
+  const base = variantStyles[variant];
+  const hover = hoverStyles[variant];
 
-    const baseStyle: React.CSSProperties = {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "var(--space-2)",
-      height: "48px",
-      padding: "0 var(--space-6)",
-      borderRadius: "var(--radius-md)",
-      fontSize: "14px",
-      fontWeight: 600,
-      fontFamily: "inherit",
-      cursor: disabled || isLoading ? "not-allowed" : "pointer",
-      opacity: disabled ? 0.5 : 1,
-      transition: "all var(--transition-fast)",
-      width: fullWidth ? "100%" : "auto",
-      transform: isPressed ? "scale(0.97)" : "scale(1)",
-      ...variantStyles[variant],
-      ...(isHovered && !disabled && !isLoading ? variantHoverStyles[variant] : {}),
-      ...style,
-    };
+  return (
+    <button
+      disabled={disabled || isLoading}
+      onMouseEnter={(e) => {
+        if (!disabled && !isLoading) {
+          Object.assign(e.currentTarget.style, hover);
+        }
+        onMouseEnter?.(e);
+      }}
+      onMouseLeave={(e) => {
+        Object.assign(e.currentTarget.style, base);
+        onMouseLeave?.(e);
+      }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "6px",
+        height: "44px",
+        padding: "0 20px",
+        borderRadius: "var(--radius-md)",
+        fontSize: "14px",
+        fontWeight: 600,
+        fontFamily: "var(--font)",
+        cursor: disabled || isLoading ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        transition: "all var(--t-fast)",
+        width: fullWidth ? "100%" : undefined,
+        whiteSpace: "nowrap",
+        letterSpacing: "0.01em",
+        ...base,
+        ...style,
+      }}
+      {...rest}
+    >
+      {isLoading ? (
+        <span
+          style={{
+            width: "14px",
+            height: "14px",
+            border: `2px solid currentColor`,
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            animation: "spin 0.6s linear infinite",
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+      {children}
+    </button>
+  );
+}
 
-    return (
-      <button
-        ref={ref}
-        disabled={disabled || isLoading}
-        style={baseStyle}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => {
-          setIsHovered(false);
-          setIsPressed(false);
-        }}
-        onMouseDown={() => {
-          if (!disabled && !isLoading) setIsPressed(true);
-        }}
-        onMouseUp={() => setIsPressed(false)}
-        {...props}
-      >
-        {isLoading ? (
-          <span
-            style={{
-              width: "18px",
-              height: "18px",
-              border: "2px solid currentColor",
-              borderTopColor: "transparent",
-              borderRadius: "50%",
-              animation: "spin 0.6s linear infinite",
-            }}
-          />
-        ) : (
-          children
-        )}
-      </button>
-    );
+// Inject spin keyframe if needed
+if (typeof document !== "undefined") {
+  const styleId = "__btn-spin";
+  if (!document.getElementById(styleId)) {
+    const s = document.createElement("style");
+    s.id = styleId;
+    s.textContent = "@keyframes spin { to { transform: rotate(360deg); } }";
+    document.head.appendChild(s);
   }
-);
-
-Button.displayName = "Button";
-export { Button, type ButtonProps, type ButtonVariant };
+}

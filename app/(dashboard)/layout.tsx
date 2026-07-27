@@ -19,7 +19,7 @@ export default function DashboardLayout({
       <main
         style={{
           flex: 1,
-          paddingBottom: "80px", /* Space for bottom nav */
+          paddingBottom: "68px", /* Space for bottom nav */
         }}
       >
         {children}

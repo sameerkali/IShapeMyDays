@@ -2,674 +2,307 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import {
-  CaretLeft,
-  CaretRight,
-  PlusCircle,
-  CheckCircle,
-  Circle,
-  Trash,
+  CaretLeft, CaretRight, PlusCircle, CheckCircle, Circle, Trash,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
-import { getCached, setCache } from "@/lib/cache";
 import type { Habit, HabitEntry, FoodLog, Category } from "@/lib/types/database";
+import { fetchLogPageData, actionToggleHabitEntry, actionAddFoodLog, actionDeleteFoodLog } from "@/lib/server/actions";
 
-type LogCache = {
-  habits: Habit[];
-  categories: Category[];
-  entries: HabitEntry[];
-  foodLogs: FoodLog[];
-  calorieTarget: number;
-  recentFoods: FoodLog[];
-  durationInput: Record<string, string>;
-};
+const APP_START_DATE = "2026-07-27";
 
-// Helpers
 function formatDate(date: Date): string {
-  return date.toISOString().split("T")[0]; // YYYY-MM-DD
+  return date.toISOString().split("T")[0];
 }
-
 function displayDate(date: Date): string {
   const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
   if (formatDate(date) === formatDate(today)) return "Today";
   if (formatDate(date) === formatDate(yesterday)) return "Yesterday";
   if (formatDate(date) === formatDate(tomorrow)) return "Tomorrow";
-
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+const MEAL_LABELS: Record<MealType, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snack" };
 
-const MEAL_LABELS: Record<MealType, string> = {
-  breakfast: "🌅 Breakfast",
-  lunch: "☀️ Lunch",
-  dinner: "🌙 Dinner",
-  snack: "🍿 Snack",
-};
-
-type FoodFormData = {
-  food_name: string;
-  calories: string;
-  meal_type: MealType;
-};
+type FoodFormData = { food_name: string; calories: string; meal_type: MealType };
 
 export default function LogPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const dateKey = formatDate(selectedDate);
-  const cacheKey = `log_${dateKey}`;
+  const isStartDate = dateKey <= APP_START_DATE;
 
-  type LogCache = {
-    habits: (Habit & { category?: Category })[];
-    entries: HabitEntry[];
-    foodLogs: FoodLog[];
-    calorieTarget: number;
-    recentFoods: { food_name: string; calories: number }[];
-    durationInput: Record<string, string>;
-  };
-
-  const cached = getCached<LogCache>(cacheKey);
-  const [habits, setHabits] = useState<(Habit & { category?: Category })[]>(cached?.habits || []);
-  const [entries, setEntries] = useState<HabitEntry[]>(cached?.entries || []);
-  const [foodLogs, setFoodLogs] = useState<FoodLog[]>(cached?.foodLogs || []);
-  const [calorieTarget, setCalorieTarget] = useState(cached?.calorieTarget || 2000);
-  const [isLoading, setIsLoading] = useState(!cached);
+  const [habits, setHabits] = useState<(Habit & { category?: Category })[]>([]);
+  const [entries, setEntries] = useState<HabitEntry[]>([]);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [calorieTarget, setCalorieTarget] = useState(2000);
+  const [isLoading, setIsLoading] = useState(true);
   const [foodSheetOpen, setFoodSheetOpen] = useState(false);
-  const [foodForm, setFoodForm] = useState<FoodFormData>({
-    food_name: "",
-    calories: "",
-    meal_type: "breakfast",
-  });
+  const [foodForm, setFoodForm] = useState<FoodFormData>({ food_name: "", calories: "", meal_type: "breakfast" });
   const [foodError, setFoodError] = useState("");
   const [isSavingFood, setIsSavingFood] = useState(false);
-  const [recentFoods, setRecentFoods] = useState<{ food_name: string; calories: number }[]>(cached?.recentFoods || []);
-  const [durationInput, setDurationInput] = useState<Record<string, string>>(cached?.durationInput || {});
-
+  const [recentFoods, setRecentFoods] = useState<{ food_name: string; calories: number }[]>([]);
+  const [showAllRecent, setShowAllRecent] = useState(false);
+  const [durationInput, setDurationInput] = useState<Record<string, string>>({});
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const router = useRouter();
-  const supabase = createClient();
 
   const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
+    try {
+      const data = await fetchLogPageData(dateKey);
+      const categoryMap = new Map(data.categories.map((c) => [c.id, c]));
+      const endOfDay = `${dateKey}T23:59:59.999Z`;
+      const visibleHabits = data.habits
+        .filter((h) => { const c = h.created_at <= endOfDay; const nd = !h.deleted_at || h.deleted_at > endOfDay; return h.active && c && nd; })
+        .map((h) => ({ ...h, category: categoryMap.get(h.category_id) }));
+      setHabits(visibleHabits);
+      setEntries(data.entries);
+      setFoodLogs(data.foodLogs);
+      setCalorieTarget(data.calorieTarget);
+      const seen = new Set<string>();
+      const uniqueRecent = data.recentFoods.filter((f) => { const k = f.food_name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+      setRecentFoods(uniqueRecent);
+      const di: Record<string, string> = {};
+      data.entries.forEach((e) => { if (e.value > 0) di[e.habit_id] = String(e.value); });
+      setDurationInput(di);
+    } catch { toast.error("Failed to load logs"); }
+    finally { setIsLoading(false); }
+  }, [dateKey]);
 
-    // Fetch all in parallel
-    // Only show habits that existed on the selected date:
-    // - created on or before the selected date
-    // - not deleted, OR deleted after the selected date
-    const endOfDay = `${dateKey}T23:59:59.999Z`;
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-    const [habitsRes, categoriesRes, entriesRes, foodRes, settingsRes, recentRes] = await Promise.all([
-      supabase
-        .from("habits")
-        .select("*")
-        .eq("active", true)
-        .lte("created_at", endOfDay)
-        .or(`deleted_at.is.null,deleted_at.gt.${endOfDay}`)
-        .order("created_at"),
-      supabase.from("categories").select("*").order("order"),
-      supabase
-        .from("habit_entries")
-        .select("*")
-        .eq("entry_date", dateKey),
-      supabase
-        .from("food_logs")
-        .select("*")
-        .gte("logged_at", `${dateKey}T00:00:00`)
-        .lt("logged_at", `${dateKey}T23:59:59.999`),
-      supabase.from("calorie_settings").select("*").single(),
-      // Recent foods for quick-add (last 20 unique)
-      supabase
-        .from("food_logs")
-        .select("food_name, calories")
-        .order("created_at", { ascending: false })
-        .limit(50),
-    ]);
-
-    const categoryMap = new Map(
-      (categoriesRes.data || []).map((c: Category) => [c.id, c])
-    );
-
-    const habitsWithCategory = (habitsRes.data || []).map((h: Habit) => ({
-      ...h,
-      category: categoryMap.get(h.category_id),
-    }));
-
-    setHabits(habitsWithCategory);
-    setEntries(entriesRes.data || []);
-    setFoodLogs(foodRes.data || []);
-    if (settingsRes.data) setCalorieTarget(settingsRes.data.daily_target);
-
-    // Deduplicate recent foods
-    const seen = new Set<string>();
-    const uniqueRecent = (recentRes.data || []).filter((f: { food_name: string }) => {
-      const key = f.food_name.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).slice(0, 8);
-    setRecentFoods(uniqueRecent);
-
-    // Initialize duration inputs
-    const durationInputs: Record<string, string> = {};
-    (entriesRes.data || []).forEach((entry: HabitEntry) => {
-      if (entry.value > 0) {
-        durationInputs[entry.habit_id] = String(entry.value);
-      }
-    });
-    setDurationInput(durationInputs);
-
-    setCache(cacheKey, {
-      habits: habitsWithCategory,
-      entries: entriesRes.data || [],
-      foodLogs: foodRes.data || [],
-      calorieTarget: settingsRes.data?.daily_target || 2000,
-      recentFoods: uniqueRecent,
-      durationInput: durationInputs,
-    });
-
-    setIsLoading(false);
-  }, [supabase, router, dateKey, cacheKey]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Navigate dates
   const goDay = (offset: number) => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + offset);
+    if (formatDate(d) < APP_START_DATE) return;
     setSelectedDate(d);
   };
 
-  // =========================================
-  // HABIT TOGGLE / LOGGING
-  // =========================================
-  const getEntry = (habitId: string): HabitEntry | undefined =>
-    entries.find((e) => e.habit_id === habitId);
+  const getEntry = (habitId: string): HabitEntry | undefined => entries.find((e) => e.habit_id === habitId);
 
   const toggleBoolean = async (habit: Habit) => {
     const existing = getEntry(habit.id);
     const newCompleted = !existing?.completed;
-
     try {
-      if (existing) {
-        await supabase
-          .from("habit_entries")
-          .update({ completed: newCompleted, value: newCompleted ? 1 : 0 })
-          .eq("id", existing.id);
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        await supabase.from("habit_entries").insert({
-          user_id: user.id,
-          habit_id: habit.id,
-          entry_date: dateKey,
-          value: 1,
-          completed: true,
-        });
-      }
-
-      // Optimistic update
+      await actionToggleHabitEntry(habit.id, dateKey, newCompleted, newCompleted ? 1 : 0);
       setEntries((prev) => {
         const idx = prev.findIndex((e) => e.habit_id === habit.id);
-        if (idx >= 0) {
-          const updated = [...prev];
-          updated[idx] = {
-            ...updated[idx],
-            completed: newCompleted,
-            value: newCompleted ? 1 : 0,
-          };
-          return updated;
-        }
-        return [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            user_id: "",
-            habit_id: habit.id,
-            entry_date: dateKey,
-            value: 1,
-            completed: true,
-            notes: null,
-            created_at: new Date().toISOString(),
-          },
-        ];
+        if (idx >= 0) { const updated = [...prev]; updated[idx] = { ...updated[idx], completed: newCompleted, value: newCompleted ? 1 : 0 }; return updated; }
+        return [...prev, { id: `entry-${Date.now()}`, user_id: "user-1", habit_id: habit.id, entry_date: dateKey, value: 1, completed: true, notes: null, created_at: new Date().toISOString() }];
       });
-    } catch {
-      toast.error("Failed to save");
-    }
+    } catch { toast.error("Failed to save"); }
   };
 
   const updateDuration = (habit: Habit, rawValue: string) => {
     setDurationInput((prev) => ({ ...prev, [habit.id]: rawValue }));
-
-    // Debounce save
-    if (debounceTimers.current[habit.id]) {
-      clearTimeout(debounceTimers.current[habit.id]);
-    }
-
+    if (debounceTimers.current[habit.id]) clearTimeout(debounceTimers.current[habit.id]);
     debounceTimers.current[habit.id] = setTimeout(async () => {
       const numValue = parseFloat(rawValue) || 0;
       const completed = numValue >= habit.target_value;
-      const existing = getEntry(habit.id);
-
       try {
-        if (existing) {
-          await supabase
-            .from("habit_entries")
-            .update({ value: numValue, completed })
-            .eq("id", existing.id);
-        } else if (numValue > 0) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-
-          await supabase.from("habit_entries").insert({
-            user_id: user.id,
-            habit_id: habit.id,
-            entry_date: dateKey,
-            value: numValue,
-            completed,
-          });
-        }
-
-        // Optimistic update
+        await actionToggleHabitEntry(habit.id, dateKey, completed, numValue);
         setEntries((prev) => {
           const idx = prev.findIndex((e) => e.habit_id === habit.id);
-          if (idx >= 0) {
-            const updated = [...prev];
-            updated[idx] = { ...updated[idx], value: numValue, completed };
-            return updated;
-          }
-          if (numValue > 0) {
-            return [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                user_id: "",
-                habit_id: habit.id,
-                entry_date: dateKey,
-                value: numValue,
-                completed,
-                notes: null,
-                created_at: new Date().toISOString(),
-              },
-            ];
-          }
+          if (idx >= 0) { const updated = [...prev]; updated[idx] = { ...updated[idx], value: numValue, completed }; return updated; }
+          if (numValue > 0) return [...prev, { id: `entry-${Date.now()}`, user_id: "user-1", habit_id: habit.id, entry_date: dateKey, value: numValue, completed, notes: null, created_at: new Date().toISOString() }];
           return prev;
         });
-      } catch {
-        toast.error("Failed to save");
-      }
+      } catch { toast.error("Failed to save"); }
     }, 600);
   };
 
-  // =========================================
-  // FOOD LOGGING
-  // =========================================
   const totalCalories = foodLogs.reduce((sum, f) => sum + f.calories, 0);
 
   const handleAddFood = async () => {
-    if (!foodForm.food_name.trim()) {
-      setFoodError("Food name is required");
-      return;
-    }
+    if (!foodForm.food_name.trim()) { setFoodError("Food name is required"); return; }
     const cal = parseInt(foodForm.calories);
-    if (!cal || cal <= 0) {
-      setFoodError("Enter valid calories");
-      return;
-    }
-
+    if (!cal || cal <= 0) { setFoodError("Enter valid calories"); return; }
     setIsSavingFood(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase.from("food_logs").insert({
-        user_id: user.id,
-        food_name: foodForm.food_name.trim(),
-        calories: cal,
-        meal_type: foodForm.meal_type,
-        logged_at: new Date(dateKey + "T12:00:00").toISOString(),
-      });
-
-      if (error) throw error;
-
-      toast.success("Food logged!");
+      await actionAddFoodLog({ food_name: foodForm.food_name.trim(), calories: cal, meal_type: foodForm.meal_type, logged_at: `${dateKey}T12:00:00` });
+      toast.success("Food logged");
       setFoodSheetOpen(false);
-      setFoodForm((prev) => ({
-        food_name: "",
-        calories: "",
-        meal_type: prev.meal_type, // Remember last meal type
-      }));
+      setFoodForm((prev) => ({ food_name: "", calories: "", meal_type: prev.meal_type }));
       setFoodError("");
       fetchData();
-    } catch {
-      toast.error("Failed to log food");
-    } finally {
-      setIsSavingFood(false);
-    }
+    } catch { toast.error("Failed to log food"); }
+    finally { setIsSavingFood(false); }
   };
 
   const deleteFood = async (id: string) => {
     try {
-      await supabase.from("food_logs").delete().eq("id", id);
+      await actionDeleteFoodLog(id);
       setFoodLogs((prev) => prev.filter((f) => f.id !== id));
       toast.success("Removed");
-    } catch {
-      toast.error("Failed to remove");
-    }
+    } catch { toast.error("Failed to remove"); }
   };
 
-  const quickAddFood = (food: { food_name: string; calories: number }) => {
-    setFoodForm({
-      food_name: food.food_name,
-      calories: String(food.calories),
-      meal_type: foodForm.meal_type,
-    });
-  };
+  const completedHabits = habits.filter((h) => getEntry(h.id)?.completed).length;
+  const allDone = habits.length > 0 && completedHabits === habits.length;
 
-  // =========================================
-  // STATS
-  // =========================================
-  const completedHabits = habits.filter((h) => {
-    const entry = getEntry(h.id);
-    return entry?.completed;
-  }).length;
+  const visibleRecent = showAllRecent ? recentFoods : recentFoods.slice(0, 6);
+  const overflowCount = recentFoods.length > 6 ? recentFoods.length - 6 : 0;
 
   return (
     <>
       <TopBar title="Daily Log" />
 
-      <div style={{ padding: "var(--space-4)" }}>
-        {/* ========== DATE SELECTOR ========== */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "var(--space-4)",
-            marginBottom: "var(--space-5)",
-          }}
-        >
+      <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+        {/* ── DATE NAV (Restricted: No dates prior to 27 July 2026) ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
           <button
             onClick={() => goDay(-1)}
+            disabled={isStartDate}
             aria-label="Previous day"
             style={{
+              padding: "12px 16px",
               background: "none",
               border: "none",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              padding: "var(--space-2)",
+              cursor: isStartDate ? "not-allowed" : "pointer",
+              color: isStartDate ? "var(--text-disabled)" : "var(--text-muted)",
+              borderRight: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              opacity: isStartDate ? 0.3 : 1,
             }}
           >
-            <CaretLeft size={20} weight="bold" />
+            <CaretLeft size={16} weight="bold" />
           </button>
-          <div style={{ textAlign: "center", minWidth: "140px" }}>
-            <span style={{ fontSize: "16px", fontWeight: 600 }}>
-              {displayDate(selectedDate)}
-            </span>
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <span style={{ fontSize: "14px", fontWeight: 700, letterSpacing: "-0.01em" }}>{displayDate(selectedDate)}</span>
             {formatDate(selectedDate) !== formatDate(new Date()) && (
               <button
                 onClick={() => setSelectedDate(new Date())}
-                style={{
-                  display: "block",
-                  margin: "2px auto 0",
-                  background: "none",
-                  border: "none",
-                  color: "var(--accent-primary)",
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
+                style={{ display: "block", margin: "2px auto 0", background: "none", border: "none", color: "var(--text-muted)", fontSize: "11px", fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)", textDecoration: "underline" }}
               >
-                Go to today
+                Back to today
               </button>
             )}
           </div>
           <button
             onClick={() => goDay(1)}
             aria-label="Next day"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              padding: "var(--space-2)",
-            }}
+            style={{ padding: "12px 16px", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", borderLeft: "1px solid var(--border)", display: "flex", alignItems: "center" }}
           >
-            <CaretRight size={20} weight="bold" />
+            <CaretRight size={16} weight="bold" />
           </button>
         </div>
 
         {isLoading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {[1, 2, 3, 4].map((i) => (
-              <SkeletonCard key={i}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                  <Skeleton width="22px" height="22px" borderRadius="50%" />
-                  <div style={{ flex: 1 }}>
-                    <Skeleton width="60%" height="14px" />
-                    <Skeleton width="40%" height="11px" style={{ marginTop: "6px" }} />
-                  </div>
-                </div>
-              </SkeletonCard>
-            ))}
-            <SkeletonCard style={{ marginTop: "var(--space-2)" }}>
-              <Skeleton width="100px" height="14px" />
-              <Skeleton width="70%" height="12px" style={{ marginTop: "var(--space-2)" }} />
-              <Skeleton width="100%" height="6px" borderRadius="3px" style={{ marginTop: "var(--space-2)" }} />
-            </SkeletonCard>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
           </div>
         ) : (
           <>
-            {/* ========== HABITS SECTION ========== */}
-            <section style={{ marginBottom: "var(--space-6)" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "var(--space-3)",
-                }}
-              >
-                <h2 style={{ fontSize: "16px", fontWeight: 600 }}>
-                  Habits
-                </h2>
-                <span
-                  style={{
-                    fontSize: "13px",
-                    color: completedHabits === habits.length && habits.length > 0
-                      ? "var(--accent-primary)"
-                      : "var(--text-muted)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {completedHabits}/{habits.length} done
+            {/* ── HABITS ── */}
+            <section>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)" }}>Habits</span>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: allDone ? "var(--status-success)" : "var(--text-muted)" }}>
+                  {completedHabits}/{habits.length}
                 </span>
               </div>
 
               {habits.length === 0 ? (
                 <Card padding="md">
-                  <div style={{ textAlign: "center", padding: "var(--space-4)" }}>
+                  <div style={{ textAlign: "center", padding: "12px" }}>
                     {formatDate(selectedDate) === formatDate(new Date()) ? (
                       <>
-                        <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "var(--space-3)" }}>
-                          No active habits to track.
-                        </p>
-                        <Button
-                          variant="secondary"
-                          onClick={() => router.push("/habits")}
-                          style={{ height: "36px", fontSize: "13px" }}
-                        >
-                          Add Habits
-                        </Button>
+                        <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>No habits to track.</p>
+                        <Button variant="secondary" onClick={() => router.push("/habits")} style={{ height: "36px", fontSize: "12px" }}>Add Habits</Button>
                       </>
                     ) : (
-                      <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                        No habits were being tracked on this date.
-                      </p>
+                      <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>No habits tracked on this date.</p>
                     )}
                   </div>
                 </Card>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                  {habits.map((habit) => {
+                <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {habits.map((habit, idx) => {
                     const entry = getEntry(habit.id);
                     const isCompleted = entry?.completed || false;
 
                     if (habit.tracking_type === "boolean") {
                       return (
-                        <Card key={habit.id} padding="md">
-                          <button
-                            onClick={() => toggleBoolean(habit)}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "var(--space-3)",
-                              width: "100%",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: 0,
-                              textAlign: "left",
-                              fontFamily: "inherit",
-                            }}
-                          >
-                            {/* Toggle circle */}
-                            <div
-                              style={{
-                                transition: "transform 0.15s ease",
-                                transform: isCompleted ? "scale(1)" : "scale(1)",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {isCompleted ? (
-                                <CheckCircle
-                                  size={28}
-                                  weight="fill"
-                                  color="var(--accent-primary)"
-                                />
-                              ) : (
-                                <Circle
-                                  size={28}
-                                  color="var(--divider)"
-                                />
-                              )}
-                            </div>
-
-                            {/* Name */}
-                            <div style={{ flex: 1 }}>
-                              <span
-                                style={{
-                                  fontSize: "15px",
-                                  fontWeight: 500,
-                                  color: isCompleted
-                                    ? "var(--text-primary)"
-                                    : "var(--text-secondary)",
-                                  textDecoration: isCompleted ? "line-through" : "none",
-                                  opacity: isCompleted ? 0.7 : 1,
-                                }}
-                              >
-                                {habit.name}
-                              </span>
-                              {habit.category && (
-                                <span
-                                  style={{
-                                    display: "block",
-                                    fontSize: "11px",
-                                    color: habit.category.color,
-                                    marginTop: "1px",
-                                  }}
-                                >
-                                  {habit.category.name}
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        </Card>
-                      );
-                    }
-
-                    // Duration habit
-                    return (
-                      <Card key={habit.id} padding="md">
-                        <div
+                        <button
+                          key={habit.id}
+                          onClick={() => toggleBoolean(habit)}
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "var(--space-3)",
+                            gap: "14px",
+                            width: "100%",
+                            padding: "14px 16px",
+                            background: isCompleted ? "var(--bg-elevated)" : "var(--bg-surface)",
+                            border: "none",
+                            borderBottom: idx < habits.length - 1 ? "1px solid var(--border)" : "none",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            fontFamily: "var(--font)",
+                            transition: "background var(--t-fast)",
                           }}
                         >
-                          {/* Status indicator */}
-                          <div style={{ flexShrink: 0 }}>
-                            {isCompleted ? (
-                              <CheckCircle size={28} weight="fill" color="var(--accent-primary)" />
-                            ) : (
-                              <Circle size={28} color="var(--divider)" />
-                            )}
-                          </div>
-
-                          {/* Name + category */}
+                          {isCompleted
+                            ? <CheckCircle size={22} weight="fill" color="var(--white)" />
+                            : <Circle size={22} color="var(--border-strong)" />
+                          }
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <span
-                              style={{
-                                fontSize: "15px",
-                                fontWeight: 500,
-                                color: isCompleted
-                                  ? "var(--text-primary)"
-                                  : "var(--text-secondary)",
-                                textDecoration: isCompleted ? "line-through" : "none",
-                                opacity: isCompleted ? 0.7 : 1,
-                              }}
-                            >
+                            <span style={{ fontSize: "14px", fontWeight: 500, color: isCompleted ? "var(--text-muted)" : "var(--text-primary)", textDecoration: isCompleted ? "line-through" : "none", display: "block" }}>
                               {habit.name}
                             </span>
                             {habit.category && (
-                              <span
-                                style={{
-                                  display: "block",
-                                  fontSize: "11px",
-                                  color: habit.category.color,
-                                  marginTop: "1px",
-                                }}
-                              >
+                              <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "1px" }}>
                                 {habit.category.name}
                               </span>
                             )}
                           </div>
+                          {isCompleted && (
+                            <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--status-success)" }}>Done</span>
+                          )}
+                        </button>
+                      );
+                    }
 
-                          {/* Duration input - improved UX */}
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "flex-end",
-                              gap: "var(--space-1)",
-                              flexShrink: 0,
-                            }}
-                          >
+                    // Duration
+                    return (
+                      <div
+                        key={habit.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "14px",
+                          padding: "14px 16px",
+                          backgroundColor: isCompleted ? "var(--bg-elevated)" : "var(--bg-surface)",
+                          borderBottom: idx < habits.length - 1 ? "1px solid var(--border)" : "none",
+                          transition: "background var(--t-fast)",
+                        }}
+                      >
+                        {isCompleted
+                          ? <CheckCircle size={22} weight="fill" color="var(--white)" style={{ flexShrink: 0 }} />
+                          : <Circle size={22} color="var(--border-strong)" style={{ flexShrink: 0 }} />
+                        }
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: "14px", fontWeight: 500, color: isCompleted ? "var(--text-muted)" : "var(--text-primary)", textDecoration: isCompleted ? "line-through" : "none", display: "block" }}>
+                            {habit.name}
+                          </span>
+                          {habit.category && (
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "1px" }}>
+                              {habit.category.name}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", flexShrink: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                             <input
                               type="number"
                               inputMode="decimal"
@@ -677,181 +310,118 @@ export default function LogPage() {
                               value={durationInput[habit.id] || ""}
                               onChange={(e) => updateDuration(habit, e.target.value)}
                               style={{
-                                width: "70px",
-                                height: "38px",
+                                width: "64px",
+                                height: "36px",
                                 textAlign: "center",
                                 fontSize: "14px",
                                 fontWeight: 700,
-                                fontFamily: "inherit",
-                                backgroundColor: isCompleted ? "rgba(16, 185, 129, 0.08)" : "var(--bg-tertiary)",
-                                border: `2px solid ${
-                                  isCompleted
-                                    ? "var(--accent-primary)"
-                                    : "var(--border-default)"
-                                }`,
+                                fontFamily: "var(--font)",
+                                backgroundColor: "var(--bg-base)",
+                                border: `1px solid ${isCompleted ? "var(--white)" : "var(--border-strong)"}`,
                                 borderRadius: "var(--radius-sm)",
                                 color: "var(--text-primary)",
                                 outline: "none",
-                                transition: "all var(--transition-fast)",
                               }}
                             />
-                            <span
-                              style={{
-                                fontSize: "11px",
-                                color: "var(--text-muted)",
-                                fontWeight: 500,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              min {habit.target_value} · ideal {habit.unit || "min"}
-                            </span>
+                            <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 600 }}>{habit.unit || "min"}</span>
                           </div>
+                          <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>target {habit.target_value}</span>
                         </div>
-                      </Card>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </section>
 
-            {/* ========== CALORIES SECTION ========== */}
+            {/* ── CALORIES ── */}
             <section>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "var(--space-3)",
-                }}
-              >
-                <h2 style={{ fontSize: "16px", fontWeight: 600 }}>Calories</h2>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)" }}>Calories</span>
+                {/* Highlighted Add Food Button */}
                 <button
                   onClick={() => setFoodSheetOpen(true)}
                   style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--accent-primary)",
                     display: "flex",
                     alignItems: "center",
-                    gap: "var(--space-1)",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    fontFamily: "inherit",
+                    gap: "6px",
+                    backgroundColor: "var(--white)",
+                    color: "var(--black)",
+                    padding: "6px 14px",
+                    borderRadius: "var(--radius-md)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    fontFamily: "var(--font)",
+                    letterSpacing: "0.01em",
+                    boxShadow: "0 2px 8px rgba(255,255,255,0.15)",
+                    transition: "transform var(--t-fast)",
                   }}
                 >
-                  <PlusCircle size={18} weight="bold" />
-                  Add Food
+                  <PlusCircle size={16} weight="bold" /> Add Food
                 </button>
               </div>
 
-              {/* Calorie Ring + Summary */}
-              <Card padding="lg" style={{ marginBottom: "var(--space-3)" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "var(--space-6)",
-                  }}
-                >
-                  <ProgressRing
-                    value={totalCalories}
-                    max={calorieTarget}
-                    size={110}
-                    strokeWidth={10}
-                    label="kcal"
-                  />
-                  <div>
-                    <div style={{ marginBottom: "var(--space-2)" }}>
-                      <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "block" }}>
-                        Consumed
-                      </span>
-                      <span style={{ fontSize: "20px", fontWeight: 700 }}>
-                        {totalCalories}
-                      </span>
-                    </div>
-                    <div style={{ marginBottom: "var(--space-2)" }}>
-                      <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "block" }}>
-                        Target
-                      </span>
-                      <span style={{ fontSize: "16px", fontWeight: 500, color: "var(--text-secondary)" }}>
-                        {calorieTarget}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "block" }}>
-                        Remaining
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 600,
-                          color:
-                            calorieTarget - totalCalories >= 0
-                              ? "var(--accent-primary)"
-                              : "var(--status-error)",
-                        }}
-                      >
-                        {calorieTarget - totalCalories >= 0
-                          ? calorieTarget - totalCalories
-                          : `+${totalCalories - calorieTarget} over`}
-                      </span>
-                    </div>
+              {/* Calorie summary */}
+              <Card padding="lg" style={{ marginBottom: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "28px" }}>
+                  <ProgressRing value={totalCalories} max={calorieTarget} size={100} strokeWidth={8} label="kcal" />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {[
+                      { label: "Consumed", value: totalCalories, color: "var(--text-primary)" },
+                      { label: "Target", value: calorieTarget, color: "var(--text-muted)" },
+                      {
+                        label: "Remaining",
+                        value: calorieTarget - totalCalories >= 0 ? calorieTarget - totalCalories : `+${totalCalories - calorieTarget}`,
+                        color: calorieTarget - totalCalories >= 0 ? "var(--text-primary)" : "var(--status-error)",
+                      },
+                    ].map(({ label, value, color }) => (
+                      <div key={label}>
+                        <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "2px" }}>{label}</p>
+                        <p style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1, color }}>{value}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </Card>
 
-              {/* Food Log List */}
+              {/* Food log list */}
               {foodLogs.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                  {foodLogs.map((food) => (
-                    <Card key={food.id} padding="sm">
+                <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  {foodLogs.map((food, idx) => {
+                    const mealIcons: Record<string, string> = { breakfast: "B", lunch: "L", dinner: "D", snack: "S" };
+                    return (
                       <div
+                        key={food.id}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "var(--space-3)",
-                          padding: "var(--space-1) 0",
+                          gap: "12px",
+                          padding: "12px 14px",
+                          backgroundColor: "var(--bg-surface)",
+                          borderBottom: idx < foodLogs.length - 1 ? "1px solid var(--border)" : "none",
                         }}
                       >
-                        <span style={{ fontSize: "16px", flexShrink: 0 }}>
-                          {food.meal_type === "breakfast" ? "🌅" :
-                           food.meal_type === "lunch" ? "☀️" :
-                           food.meal_type === "dinner" ? "🌙" : "🍿"}
+                        <span style={{ fontSize: "9px", fontWeight: 800, width: "16px", color: "var(--text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                          {mealIcons[food.meal_type] || "—"}
                         </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: "14px", fontWeight: 500 }}>
-                            {food.food_name}
-                          </span>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: 600,
-                            color: "var(--text-secondary)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {food.calories} cal
+                        <span style={{ flex: 1, fontSize: "13px", fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {food.food_name}
+                        </span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                          {food.calories}
                         </span>
                         <button
                           onClick={() => deleteFood(food.id)}
                           aria-label="Remove food"
-                          style={{
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            color: "var(--text-disabled)",
-                            padding: "var(--space-1)",
-                            flexShrink: 0,
-                          }}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-disabled)", padding: "4px", display: "flex", alignItems: "center" }}
                         >
                           <Trash size={14} />
                         </button>
                       </div>
-                    </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -859,147 +429,102 @@ export default function LogPage() {
         )}
       </div>
 
-      {/* ========== ADD FOOD BOTTOM SHEET ========== */}
-      <BottomSheet
-        isOpen={foodSheetOpen}
-        onClose={() => {
-          setFoodSheetOpen(false);
-          setFoodError("");
-        }}
-        title="Add Food"
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          {/* Recent foods quick-add */}
+      {/* ── ADD FOOD SHEET ── */}
+      <BottomSheet isOpen={foodSheetOpen} onClose={() => { setFoodSheetOpen(false); setFoodError(""); setShowAllRecent(false); }} title="Add Food">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {recentFoods.length > 0 && (
             <div>
-              <label
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  color: "var(--text-muted)",
-                  display: "block",
-                  marginBottom: "var(--space-2)",
-                }}
-              >
-                Recent
-              </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-                {recentFoods.map((food, i) => (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)" }}>Recent Foods</p>
+                {recentFoods.length > 6 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRecent(!showAllRecent)}
+                    style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: "11px", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    {showAllRecent ? "Show less" : `+${overflowCount} more`}
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+                {visibleRecent.map((food, i) => (
                   <button
                     key={i}
-                    onClick={() => quickAddFood(food)}
+                    onClick={() => setFoodForm((f) => ({ ...f, food_name: food.food_name, calories: String(food.calories) }))}
                     type="button"
                     style={{
-                      padding: "var(--space-1) var(--space-3)",
-                      borderRadius: "var(--radius-full)",
-                      border: "1px solid var(--border-default)",
-                      backgroundColor: "var(--bg-primary)",
-                      color: "var(--text-secondary)",
-                      fontSize: "12px",
-                      fontFamily: "inherit",
+                      padding: "4px 8px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border-strong)",
+                      backgroundColor: "var(--bg-elevated)",
+                      color: "var(--text-primary)",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      fontFamily: "var(--font)",
                       cursor: "pointer",
-                      transition: "all var(--transition-fast)",
                     }}
                   >
-                    {food.food_name} ({food.calories})
+                    {food.food_name} <span style={{ color: "var(--text-muted)", fontSize: "10px" }}>({food.calories})</span>
                   </button>
                 ))}
+
+                {!showAllRecent && overflowCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRecent(true)}
+                    title={`See ${overflowCount} more recent items`}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border-strong)",
+                      backgroundColor: "var(--bg-hover)",
+                      color: "var(--white)",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      fontFamily: "var(--font)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    +{overflowCount} more
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          <Input
-            label="Food Name"
-            placeholder="e.g. Chicken Rice, Apple, Coffee"
-            value={foodForm.food_name}
-            onChange={(e) => {
-              setFoodForm((f) => ({ ...f, food_name: e.target.value }));
-              if (foodError) setFoodError("");
-            }}
-            error={foodError}
-            autoFocus
-          />
+          <Input label="Food Name" placeholder="e.g. Chicken Rice, Apple" value={foodForm.food_name} onChange={(e) => { setFoodForm((f) => ({ ...f, food_name: e.target.value })); if (foodError) setFoodError(""); }} error={foodError} autoFocus />
+          <Input label="Calories" type="number" inputMode="numeric" placeholder="350" value={foodForm.calories} onChange={(e) => { setFoodForm((f) => ({ ...f, calories: e.target.value })); if (foodError) setFoodError(""); }} />
 
-          <Input
-            label="Calories"
-            type="number"
-            inputMode="numeric"
-            placeholder="e.g. 350"
-            value={foodForm.calories}
-            onChange={(e) => {
-              setFoodForm((f) => ({ ...f, calories: e.target.value }));
-              if (foodError) setFoodError("");
-            }}
-          />
-
-          {/* Meal type selector */}
+          {/* Meal type */}
           <div>
-            <label
-              style={{
-                fontSize: "12px",
-                fontWeight: 500,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                color: "var(--text-muted)",
-                display: "block",
-                marginBottom: "var(--space-2)",
-              }}
-            >
-              Meal
-            </label>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "var(--space-2)",
-              }}
-            >
-              {(Object.entries(MEAL_LABELS) as [MealType, string][]).map(
-                ([value, label]) => (
-                  <button
-                    key={value}
-                    onClick={() => setFoodForm((f) => ({ ...f, meal_type: value }))}
-                    type="button"
-                    style={{
-                      height: "44px",
-                      borderRadius: "var(--radius-md)",
-                      border: `2px solid ${
-                        foodForm.meal_type === value
-                          ? "var(--accent-primary)"
-                          : "var(--border-default)"
-                      }`,
-                      backgroundColor:
-                        foodForm.meal_type === value
-                          ? "var(--accent-primary)" + "15"
-                          : "var(--bg-primary)",
-                      color:
-                        foodForm.meal_type === value
-                          ? "var(--accent-primary)"
-                          : "var(--text-muted)",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      fontFamily: "inherit",
-                      cursor: "pointer",
-                      transition: "all var(--transition-fast)",
-                    }}
-                  >
-                    {label}
-                  </button>
-                )
-              )}
+            <p style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "8px" }}>Meal</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6px" }}>
+              {(Object.entries(MEAL_LABELS) as [MealType, string][]).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setFoodForm((f) => ({ ...f, meal_type: value }))}
+                  type="button"
+                  style={{
+                    height: "44px",
+                    borderRadius: "var(--radius-md)",
+                    border: `1px solid ${foodForm.meal_type === value ? "var(--white)" : "var(--border-strong)"}`,
+                    backgroundColor: foodForm.meal_type === value ? "var(--bg-elevated)" : "transparent",
+                    color: foodForm.meal_type === value ? "var(--white)" : "var(--text-muted)",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    fontFamily: "var(--font)",
+                    cursor: "pointer",
+                    transition: "all var(--t-fast)",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <Button
-            variant="primary"
-            fullWidth
-            onClick={handleAddFood}
-            isLoading={isSavingFood}
-          >
-            Log Food
-          </Button>
+          <Button variant="primary" fullWidth onClick={handleAddFood} isLoading={isSavingFood}>Log Food</Button>
         </div>
       </BottomSheet>
     </>

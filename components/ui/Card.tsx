@@ -1,52 +1,44 @@
-import { type HTMLAttributes, forwardRef } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
-type CardProps = HTMLAttributes<HTMLDivElement> & {
-  hoverable?: boolean;
-  padding?: "sm" | "md" | "lg";
+type CardProps = {
+  children: ReactNode;
+  padding?: "none" | "sm" | "md" | "lg";
+  style?: CSSProperties;
+  onClick?: () => void;
+  className?: string;
 };
 
 const paddingMap = {
-  sm: "var(--space-3)",
-  md: "var(--space-4)",
-  lg: "var(--space-6)",
+  none: "0",
+  sm: "12px",
+  md: "16px",
+  lg: "20px",
 };
 
-const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ hoverable = false, padding = "md", children, className, style, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        data-card=""
-        className={className}
-        style={{
-          backgroundColor: "var(--bg-secondary)",
-          borderRadius: "var(--radius-lg)",
-          padding: paddingMap[padding],
-          border: "1px solid var(--border-default)",
-          boxShadow: "var(--shadow-card)",
-          transition: hoverable ? "all var(--transition-normal)" : undefined,
-          cursor: hoverable ? "pointer" : undefined,
-          ...style,
-        }}
-        onMouseEnter={(e) => {
-          if (hoverable) {
-            (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-hover)";
-            (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--shadow-elevated)";
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (hoverable) {
-            (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-default)";
-            (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--shadow-card)";
-          }
-        }}
-        {...props}
-      >
-        {children}
-      </div>
-    );
-  }
-);
-
-Card.displayName = "Card";
-export { Card, type CardProps };
+export function Card({ children, padding = "md", style, onClick, className }: CardProps) {
+  return (
+    <div
+      onClick={onClick}
+      className={className}
+      style={{
+        backgroundColor: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        padding: paddingMap[padding],
+        cursor: onClick ? "pointer" : undefined,
+        transition: onClick ? "background var(--t-fast), border-color var(--t-fast)" : undefined,
+        ...style,
+      }}
+      onMouseEnter={onClick ? (e) => {
+        e.currentTarget.style.backgroundColor = "var(--bg-elevated)";
+        e.currentTarget.style.borderColor = "var(--border-strong)";
+      } : undefined}
+      onMouseLeave={onClick ? (e) => {
+        e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+        e.currentTarget.style.borderColor = "var(--border)";
+      } : undefined}
+    >
+      {children}
+    </div>
+  );
+}

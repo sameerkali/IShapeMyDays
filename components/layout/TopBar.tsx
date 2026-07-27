@@ -15,14 +15,23 @@ function TopBar({ title, rightAction }: TopBarProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        height: "56px",
-        padding: "0 var(--space-4)",
-        backgroundColor: "var(--bg-primary)",
-        borderBottom: "1px solid var(--border-default)",
-        backdropFilter: "blur(8px)",
+        height: "52px",
+        padding: "0 16px",
+        backgroundColor: "var(--bg-base)",
+        borderBottom: "1px solid var(--border)",
       }}
     >
-      <h1 style={{ fontSize: "18px", fontWeight: 600 }}>{title}</h1>
+      <span
+        style={{
+          fontSize: "13px",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          color: "var(--text-primary)",
+        }}
+      >
+        {title}
+      </span>
       {rightAction && <div>{rightAction}</div>}
     </header>
   );
