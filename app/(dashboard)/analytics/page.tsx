@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import type { Habit, HabitEntry, Category, FoodLog } from "@/lib/types/database";
 import { fetchAnalyticsPageData } from "@/lib/server/actions";
+import { fetchWithCache } from "@/lib/client/cache";
 
 function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
@@ -80,7 +81,7 @@ export default function AnalyticsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const data = await fetchAnalyticsPageData();
+      const data = await fetchWithCache("analytics_page", () => fetchAnalyticsPageData());
       setHabits(data.habits);
       setEntries(data.entries);
       setCategories(data.categories);
@@ -91,7 +92,12 @@ export default function AnalyticsPage() {
     finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const handleFocus = () => fetchData();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchData]);
 
   // Dynamic Target Lookup for Historical Integrity
   const getHistoricalTarget = useCallback((dateStr: string): number => {

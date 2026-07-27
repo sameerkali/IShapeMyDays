@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import type { Profile } from "@/lib/types/database";
 import { fetchProfilePageData, actionUpdateProfile, actionUpdateCalorieTarget } from "@/lib/server/actions";
+import { fetchWithCache, invalidateCache } from "@/lib/client/cache";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -42,9 +43,10 @@ export default function ProfilePage() {
   const LIMITS = { name: 30, phone: 10, profession: 50, bio: 500, goal: 200 };
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     try {
-      const data = await fetchProfilePageData();
+      if (forceRefresh) invalidateCache("profile_page");
+      const data = await fetchWithCache("profile_page", () => fetchProfilePageData());
       setProfile(data.profile); setUserEmail(data.profile.email);
       setCalorieTarget(String(data.calorieTarget));
       const totalHabits = data.habitsCount;
@@ -56,7 +58,12 @@ export default function ProfilePage() {
     finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const handleFocus = () => fetchData();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchData]);
 
   const openEdit = () => {
     setEditName(profile?.name || ""); setEditPhone(profile?.phone || "");

@@ -52,6 +52,8 @@ const CategorySchema = new Schema<ICategory>({
     createdAt: { type: String, default: () => new Date().toISOString() },
 }, { versionKey: false });
 
+CategorySchema.index({ userId: 1, order: 1 });
+
 export const CategoryModel = models.Category || model<ICategory>("Category", CategorySchema);
 
 // =========================================
@@ -81,6 +83,8 @@ const HabitSchema = new Schema<IHabit>({
     deletedAt: { type: String, default: null },
 }, { versionKey: false });
 
+HabitSchema.index({ userId: 1, deletedAt: 1 });
+
 export const HabitModel = models.Habit || model<IHabit>("Habit", HabitSchema);
 
 // =========================================
@@ -107,6 +111,7 @@ const HabitEntrySchema = new Schema<IHabitEntry>({
 }, { versionKey: false });
 
 HabitEntrySchema.index({ habitId: 1, entryDate: 1 }, { unique: true });
+HabitEntrySchema.index({ userId: 1, entryDate: -1 });
 
 export const HabitEntryModel = models.HabitEntry || model<IHabitEntry>("HabitEntry", HabitEntrySchema);
 
@@ -130,6 +135,8 @@ const FoodLogSchema = new Schema<IFoodLog>({
     loggedAt: { type: String, required: true },
     createdAt: { type: String, default: () => new Date().toISOString() },
 }, { versionKey: false });
+
+FoodLogSchema.index({ userId: 1, loggedAt: -1 });
 
 export const FoodLogModel = models.FoodLog || model<IFoodLog>("FoodLog", FoodLogSchema);
 

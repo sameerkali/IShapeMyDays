@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import type { Habit, HabitEntry, FoodLog, Category } from "@/lib/types/database";
 import { fetchLogPageData, actionToggleHabitEntry, actionAddFoodLog, actionDeleteFoodLog } from "@/lib/server/actions";
+import { fetchWithCache, invalidateCache } from "@/lib/client/cache";
 
 const APP_START_DATE = "2026-07-27";
 
@@ -55,9 +56,10 @@ export default function LogPage() {
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const router = useRouter();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     try {
-      const data = await fetchLogPageData(dateKey);
+      if (forceRefresh) invalidateCache(`log_page_${dateKey}`);
+      const data = await fetchWithCache(`log_page_${dateKey}`, () => fetchLogPageData(dateKey));
       const categoryMap = new Map(data.categories.map((c) => [c.id, c]));
       const endOfDay = `${dateKey}T23:59:59.999Z`;
       const visibleHabits = data.habits
@@ -77,7 +79,12 @@ export default function LogPage() {
     finally { setIsLoading(false); }
   }, [dateKey]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const handleFocus = () => fetchData();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchData]);
 
   const todayStr = formatDate(new Date());
   const isToday = dateKey >= todayStr;

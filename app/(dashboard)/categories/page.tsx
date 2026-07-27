@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import type { Category } from "@/lib/types/database";
 import { fetchCategoriesPageData, actionSaveCategory, actionDeleteCategory } from "@/lib/server/actions";
+import { fetchWithCache, invalidateCache } from "@/lib/client/cache";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ICON_MAP: Record<string, any> = {
@@ -53,9 +54,10 @@ export default function CategoriesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const fetchCategories = useCallback(async () => {
+  const fetchCategories = useCallback(async (forceRefresh = false) => {
     try {
-      const data = await fetchCategoriesPageData();
+      if (forceRefresh) invalidateCache("categories_page");
+      const data = await fetchWithCache("categories_page", () => fetchCategoriesPageData());
       setCategories(data.categories);
       const counts: Record<string, number> = {};
       data.habits.forEach((h: { category_id: string }) => { counts[h.category_id] = (counts[h.category_id] || 0) + 1; });
@@ -64,7 +66,12 @@ export default function CategoriesPage() {
     finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => {
+    fetchCategories();
+    const handleFocus = () => fetchCategories();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchCategories]);
 
   const openCreateSheet = () => { setEditingId(null); setForm({ ...defaultForm, order: categories.length }); setFormError(""); setSheetOpen(true); };
   const openEditSheet = (cat: Category) => {
@@ -81,7 +88,7 @@ export default function CategoriesPage() {
     try {
       await actionSaveCategory({ name: form.name.trim(), icon: form.icon, color: form.color, order: form.order, active: true }, editingId);
       toast.success(editingId ? "Category updated" : "Category created");
-      setSheetOpen(false); fetchCategories();
+      setSheetOpen(false); fetchCategories(true);
     } catch { toast.error("Failed to save"); }
     finally { setIsSaving(false); }
   };
@@ -89,7 +96,7 @@ export default function CategoriesPage() {
   const handleDelete = async (id: string) => {
     try {
       await actionDeleteCategory(id);
-      toast.success("Deleted"); setDeleteConfirm(null); fetchCategories();
+      toast.success("Deleted"); setDeleteConfirm(null); fetchCategories(true);
     } catch { toast.error("Failed to delete"); }
   };
 

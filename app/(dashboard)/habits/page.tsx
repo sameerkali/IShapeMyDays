@@ -13,6 +13,7 @@ import { PlusCircle, PencilSimple, Trash, Timer, CheckCircle } from "@phosphor-i
 import { toast } from "sonner";
 import type { Category, Habit } from "@/lib/types/database";
 import { fetchHabitsPageData, actionSaveHabit, actionDeleteHabit } from "@/lib/server/actions";
+import { fetchWithCache, invalidateCache } from "@/lib/client/cache";
 
 type HabitFormData = {
   name: string; category_id: string;
@@ -36,15 +37,21 @@ export default function HabitsPage() {
   const [habitEntryCounts, setHabitEntryCounts] = useState<Record<string, number>>({});
   const router = useRouter();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     try {
-      const data = await fetchHabitsPageData();
+      if (forceRefresh) invalidateCache("habits_page");
+      const data = await fetchWithCache("habits_page", () => fetchHabitsPageData());
       setHabits(data.habits); setCategories(data.categories); setHabitEntryCounts(data.habitEntryCounts);
     } catch { toast.error("Failed to load habits"); }
     finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const handleFocus = () => fetchData();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchData]);
 
   const openCreateSheet = () => { setEditingId(null); setForm({ ...defaultForm, category_id: categories[0]?.id || "" }); setFormErrors({}); setSheetOpen(true); };
   const hasEntries = (id: string) => (habitEntryCounts[id] || 0) > 0;
@@ -71,7 +78,7 @@ export default function HabitsPage() {
     try {
       await actionSaveHabit({ name: form.name.trim(), category_id: form.category_id, tracking_type: form.tracking_type, target_value: form.target_value, unit: form.unit.trim() || null, active: true }, editingId);
       toast.success(editingId ? "Habit updated" : "Habit created");
-      setSheetOpen(false); fetchData();
+      setSheetOpen(false); fetchData(true);
     } catch { toast.error("Failed to save habit"); }
     finally { setIsSaving(false); }
   };
@@ -80,13 +87,14 @@ export default function HabitsPage() {
     try {
       await actionDeleteHabit(id);
       toast.success(hasEntries(id) ? "Habit archived" : "Habit deleted");
-      setDeleteConfirm(null); fetchData();
+      setDeleteConfirm(null); fetchData(true);
     } catch { toast.error("Failed to delete habit"); }
   };
 
   const toggleActive = async (habit: Habit) => {
     try {
       await actionSaveHabit({ name: habit.name, category_id: habit.category_id, tracking_type: habit.tracking_type, target_value: habit.target_value, unit: habit.unit, active: !habit.active }, habit.id);
+      invalidateCache();
       setHabits((prev) => prev.map((h) => h.id === habit.id ? { ...h, active: !h.active } : h));
     } catch { toast.error("Failed to update"); }
   };
