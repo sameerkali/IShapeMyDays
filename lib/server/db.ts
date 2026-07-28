@@ -26,6 +26,7 @@ function toProfile(doc: any): Profile {
         profession: doc.profession ?? null,
         bio: doc.bio ?? null,
         goal: doc.goal ?? null,
+        weight: doc.weight ?? null,
         created_at: doc.createdAt,
     };
 }
@@ -119,6 +120,7 @@ export async function updateProfile(updates: Partial<Profile>): Promise<Profile>
     if (updates.profession !== undefined) mongoUpdates.profession = updates.profession;
     if (updates.bio !== undefined) mongoUpdates.bio = updates.bio;
     if (updates.goal !== undefined) mongoUpdates.goal = updates.goal;
+    if (updates.weight !== undefined) mongoUpdates.weight = updates.weight;
 
     const doc = await ProfileModel.findOneAndUpdate(
         { userId: USER_ID },

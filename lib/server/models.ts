@@ -12,6 +12,7 @@ export interface IProfile extends Document {
     profession: string | null;
     bio: string | null;
     goal: string | null;
+    weight: number | null;
     createdAt: string;
 }
 
@@ -24,6 +25,7 @@ const ProfileSchema = new Schema<IProfile>({
     profession: { type: String, default: null },
     bio: { type: String, default: null },
     goal: { type: String, default: null },
+    weight: { type: Number, default: null },
     createdAt: { type: String, default: () => new Date().toISOString() },
 }, { versionKey: false });
 

@@ -12,6 +12,7 @@ export type Profile = {
     profession: string | null;
     bio: string | null;
     goal: string | null;
+    weight: number | null;
     created_at: string;
 };
 

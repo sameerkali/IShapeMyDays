@@ -30,6 +30,7 @@ export default function ProfilePage() {
   const [editProfession, setEditProfession] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editGoal, setEditGoal] = useState("");
+  const [editWeight, setEditWeight] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
 
@@ -68,17 +69,22 @@ export default function ProfilePage() {
   const openEdit = () => {
     setEditName(profile?.name || ""); setEditPhone(profile?.phone || "");
     setEditProfession(profile?.profession || ""); setEditBio(profile?.bio || "");
-    setEditGoal(profile?.goal || ""); setEditOpen(true);
+    setEditGoal(profile?.goal || "");
+    setEditWeight(profile?.weight != null ? String(profile.weight) : "");
+    setEditOpen(true);
   };
 
-  const hasProfileDetails = Boolean(profile && (profile.profession || profile.bio || profile.goal));
+  const hasProfileDetails = Boolean(profile && (profile.profession || profile.bio || profile.goal || profile.weight));
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    const name = editName.trim(); const phone = editPhone.trim();
+    const name = editName.trim(); const phone = editPhone.trim(); const weightStr = editWeight.trim();
     if (!name) errors.name = "Name is required";
     else if (name.length > LIMITS.name) errors.name = `Max ${LIMITS.name} characters`;
     if (phone && !/^\d{10}$/.test(phone)) errors.phone = "Must be exactly 10 digits";
+    if (weightStr && (isNaN(Number(weightStr)) || Number(weightStr) <= 0 || Number(weightStr) > 500)) {
+      errors.weight = "Enter a valid weight in kg";
+    }
     if (editProfession.trim().length > LIMITS.profession) errors.profession = `Max ${LIMITS.profession} characters`;
     if (editBio.trim().length > LIMITS.bio) errors.bio = `Max ${LIMITS.bio} characters`;
     if (editGoal.trim().length > LIMITS.goal) errors.goal = `Max ${LIMITS.goal} characters`;
@@ -90,8 +96,17 @@ export default function ProfilePage() {
     if (!validateForm()) return;
     setIsSaving(true);
     try {
-      await actionUpdateProfile({ name: editName.trim(), email: userEmail, phone: editPhone.trim() || null, profession: editProfession.trim() || null, bio: editBio.trim() || null, goal: editGoal.trim() || null });
-      toast.success("Profile saved"); setEditOpen(false); fetchData();
+      const parsedWeight = editWeight.trim() ? parseFloat(editWeight.trim()) : null;
+      await actionUpdateProfile({
+        name: editName.trim(),
+        email: userEmail,
+        phone: editPhone.trim() || null,
+        profession: editProfession.trim() || null,
+        bio: editBio.trim() || null,
+        goal: editGoal.trim() || null,
+        weight: parsedWeight,
+      });
+      toast.success("Profile saved"); setEditOpen(false); fetchData(true);
     } catch { toast.error("Failed to save"); }
     finally { setIsSaving(false); }
   };
@@ -192,18 +207,25 @@ export default function ProfilePage() {
         </Card>
 
         {/* ── STATS ROW ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
           <Card padding="md">
             <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>Weekly Score</p>
-            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, color: scoreBarColor }}>{weeklyScore}%</div>
+            <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, color: scoreBarColor }}>{weeklyScore}%</div>
             <div style={{ marginTop: "10px", height: "3px", backgroundColor: "var(--border)", borderRadius: "2px", overflow: "hidden" }}>
               <div style={{ width: `${weeklyScore}%`, height: "100%", backgroundColor: scoreBarColor, transition: "width 0.5s ease" }} />
             </div>
           </Card>
           <Card padding="md">
             <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>This Week</p>
-            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>{weeklyHabitsCompleted}</div>
+            <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>{weeklyHabitsCompleted}</div>
             <p style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>of {weeklyHabitsTotal} done</p>
+          </Card>
+          <Card padding="md" onClick={openEdit} style={{ cursor: "pointer" }}>
+            <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "6px" }}>Weight</p>
+            <div style={{ fontSize: "24px", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1 }}>
+              {profile?.weight != null ? `${profile.weight}` : "—"}
+            </div>
+            <p style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>{profile?.weight != null ? "kg" : "Tap to set"}</p>
           </Card>
         </div>
 
@@ -214,8 +236,6 @@ export default function ProfilePage() {
             <p style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--text-secondary)" }}>{profile.goal}</p>
           </Card>
         )}
-
-    
 
         {/* ── MANAGE ── */}
         <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
@@ -243,6 +263,11 @@ export default function ProfilePage() {
               <span style={{ fontSize: "10px", color: formErrors.name ? "var(--status-error)" : "transparent" }}>{formErrors.name || "."}</span>
               <span style={{ fontSize: "10px", color: editName.length >= LIMITS.name ? "var(--status-error)" : "var(--text-disabled)" }}>{editName.length}/{LIMITS.name}</span>
             </div>
+          </div>
+
+          <div>
+            <Input label="Weight (kg)" type="number" step="0.1" value={editWeight} onChange={(e) => { setEditWeight(e.target.value); setFormErrors((p) => ({ ...p, weight: "" })); }} placeholder="e.g. 70.5" inputMode="decimal" style={formErrors.weight ? { borderColor: "var(--status-error)" } : undefined} />
+            <span style={{ fontSize: "10px", color: formErrors.weight ? "var(--status-error)" : "transparent", display: "block", marginTop: "4px" }}>{formErrors.weight || "."}</span>
           </div>
 
           <div>
